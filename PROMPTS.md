@@ -28,6 +28,32 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 2: Account page
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 2`
+2. "yes, approved" (approved the two TDD behaviors)
+3. "yes, make it pass" (behavior 1: a signed-in user can update their username and email)
+4. "yes, move on to behavior 2"
+5. "yes, make it pass" (behavior 2: a taken username or email, ignoring case, is rejected and nothing is saved)
+6. "yes, continue with the rest of the phase"
+7. "what is the username/password for user A?"
+8. "all manual steps check out"
+9. "Is this a  feature-specific business rules or does it predict commands or  project structure? We don't want anything like that in CLAUDE.md, and we want to keep this file very straightforward without verbose explanations."
+
+### Summary
+- **Outcome:**
+  - `/account/` is now an edit form for the signed-in user's username and email. It always edits `request.user` (there's no id in the URL), and it shows "Your details were saved." after a save. A "Change password" card links to Django's password-change flow, which got its own DaisyUI templates (`password_change_form.html`, `password_change_done.html`) instead of the admin-styled defaults.
+  - The case-insensitive email check is now shared by sign-up and the Account page (`ensure_email_available`). On the Account page it ignores the user's own row, so the error appears under the Email field.
+  - TDD covered two behaviors: updating username and email, and rejecting a taken username or email. Normal tests cover keeping your own email (or changing its case), showing only your own details, ignoring another user's id in the POST, the save confirmation, a successful password change that keeps you signed in, a wrong old password, and sign-in being required for password change. 30 tests pass; Ruff is clean.
+  - All four Phase 2 acceptance criteria are ticked in the plan, backed by tests and the user's manual checks. CLAUDE.md was not changed.
+- **Deviations:**
+  - The user asked which username and password "user A" meant in the manual steps. Claude explained there was no preset account, found the existing local `example` user, and gave three options: sign in as it, reset its password with `changepassword`, or sign up a new account.
+  - Claude suggested adding the case-insensitive email rule to CLAUDE.md. The user asked whether it was a feature-specific rule; Claude agreed it was and added nothing.
+- **Sideways:**
+  - Behavior 2's RED failed for two different reasons. The username error was already caught but not shown, because the Account template still had the placeholder and didn't render the form. The case-insensitive email error landed in the non-field errors (from the expression constraint) instead of under Email. Both were fixed by the same GREEN step.
+  - The "keep your own email" test first expected `Ash@Example.com` to be saved as typed. Django lowercases the domain part on save, so the expected value was corrected to `Ash@example.com`.
+
 ## 2026-11-15 — Implemented Phase 1: project skeleton and sign up / sign in / sign out
 
 ### Prompts

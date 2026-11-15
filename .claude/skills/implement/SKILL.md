@@ -39,7 +39,7 @@ this step is complete.
    phase's checkboxes and nothing else in the plan.
 5. If any criterion is not met or has no evidence, leave it unticked, say what is missing,
    and stop. Do not commit until the gap is fixed or the user explicitly accepts it.
-6. Ask the user if CLAUDE.md needs to be updated with any relevant information.
+6. Ask the user if CLAUDE.md needs to be updated with any relevant information. Do not include any feature-specific business rules or anything that could predict commands or project structure in CLAUDE.md. We don't want anything like that in CLAUDE.md, and we want to keep this file very straightforward without verbose explanations.
 
 ## 6. Finish the Phase
 

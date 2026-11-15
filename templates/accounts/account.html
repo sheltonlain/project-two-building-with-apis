@@ -2,11 +2,23 @@
 {% block title %}Account{% endblock %}
 {% block content %}
 <h1 class="text-3xl font-bold mb-4">Account</h1>
-<div class="card bg-base-100 shadow">
+<div class="card bg-base-100 shadow max-w-md">
   <div class="card-body">
-    <p><span class="font-semibold">Username:</span> {{ user.username }}</p>
-    <p><span class="font-semibold">Email:</span> {{ user.email }}</p>
-    <p class="opacity-70 text-sm">Editing your details arrives in the next phase.</p>
+    <h2 class="card-title">Your details</h2>
+    <form method="post" action="{% url 'accounts:account' %}">
+      {% csrf_token %}
+      {% include "includes/form_fields.html" %}
+      <button type="submit" class="btn btn-primary w-full mt-4">Save changes</button>
+    </form>
+  </div>
+</div>
+<div class="card bg-base-100 shadow max-w-md mt-4">
+  <div class="card-body">
+    <h2 class="card-title">Password</h2>
+    <p class="text-sm opacity-70">Change the password you use to sign in.</p>
+    <div class="card-actions">
+      <a class="btn btn-outline" href="{% url 'password_change' %}">Change password</a>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -61,10 +61,10 @@ Add an Account page at `/account/` where a signed-in user edits their username a
 
 ### Acceptance criteria
 
-- [ ] A user can update their username and email; taken values are rejected with a clear message.
-- [ ] Password change works and keeps the user signed in.
-- [ ] The page only ever shows and edits the signed-in user's own details.
-- [ ] Tests cover the update flow and uniqueness errors.
+- [x] A user can update their username and email; taken values are rejected with a clear message.
+- [x] Password change works and keeps the user signed in.
+- [x] The page only ever shows and edits the signed-in user's own details.
+- [x] Tests cover the update flow and uniqueness errors.
 
 ---
 
