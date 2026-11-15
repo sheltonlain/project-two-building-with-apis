@@ -2,8 +2,40 @@
   <form method="get" action="{% url 'catalog:search' %}" class="flex flex-wrap items-end gap-2 mb-4" role="search">
     <label class="form-control grow">
       <span class="label-text mb-1">Card name</span>
-      <input type="search" name="name" value="{{ name }}" placeholder="e.g. pika" class="input input-bordered w-full"{% if not searched %} autofocus{% endif %}>
+      <input type="search" name="name" value="{{ filters.name }}" placeholder="e.g. pika" class="input input-bordered w-full"{% if not searched %} autofocus{% endif %}>
     </label>
+    {% if filters_unavailable %}
+      {# Keep any chosen set and rarity, so searching again (or going Back) doesn't drop them. #}
+      {% if filters.set %}<input type="hidden" name="set" value="{{ filters.set }}">{% endif %}
+      {% if filters.rarity %}<input type="hidden" name="rarity" value="{{ filters.rarity }}">{% endif %}
+      <div role="alert" class="alert alert-warning py-2 grow">
+        <span>We couldn't load the set and rarity lists from TCGdex, the card database. You can still search by name, or try again in a minute.</span>
+        <a href="{% querystring %}" class="btn btn-sm">Retry</a>
+      </div>
+    {% else %}
+      <label class="form-control">
+        <span class="label-text mb-1">Set</span>
+        <select name="set" class="select select-bordered">
+          <option value="">Any set</option>
+          {% for group in set_groups %}
+            <optgroup label="{{ group.name }}">
+              {% for set in group.sets %}
+                <option value="{{ set.id }}"{% if set.id == filters.set %} selected{% endif %}>{{ set.name }}</option>
+              {% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form-control">
+        <span class="label-text mb-1">Rarity</span>
+        <select name="rarity" class="select select-bordered">
+          <option value="">Any rarity</option>
+          {% for rarity in rarities %}
+            <option value="{{ rarity }}"{% if rarity == filters.rarity %} selected{% endif %}>{{ rarity }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
     <button type="submit" class="btn btn-primary">Search</button>
   </form>
 
@@ -51,9 +83,9 @@
         </nav>
       {% endif %}
     {% else %}
-      <p class="opacity-70">No cards match that name. Check the spelling or try part of the name.</p>
+      <p class="opacity-70">No cards match your search. Check the spelling, try part of the name, or use fewer filters.</p>
     {% endif %}
   {% else %}
-    <p class="opacity-70">Search the TCGdex catalog by card name. Part of a name works, for example "pika".</p>
+    <p class="opacity-70">Search the TCGdex catalog by card name, set or rarity, or combine them. Part of a name works, for example "pika".</p>
   {% endif %}
 </div>

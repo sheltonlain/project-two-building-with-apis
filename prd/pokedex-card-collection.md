@@ -302,7 +302,7 @@ All rules live in one services module that both the website views and the API ca
 - **Facts verified against the live TCGdex API on 2026-11-12 and 2026-11-14:**
   - No API key is required.
   - Search results contain only ID, local ID, name and image. Set, rarity, variants and prices come only from the card detail endpoint.
-  - The `name` filter is a contains match, and the `rarity` and `set.id` filters are exact matches.
+  - Filters are contains matches by default, including `set.id` and `rarity` (`set.id=sv03` also returns `sv03.5`). Prefixing the value with `eq:` makes it an exact match (checked 2026-11-15).
   - Pagination parameters work, but responses include no total count.
   - There are 221 sets in 21 series, 44 rarities and about 23,900 cards.
   - Every sampled card had variant flags.

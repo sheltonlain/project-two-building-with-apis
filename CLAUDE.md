@@ -16,6 +16,7 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - Custom user model (extends `AbstractUser`) from project start.
 - Business rules live in one shared services module; website views and the API both call it.
 - A single TCGdex client module is the only code that talks to TCGdex, and it raises its own exceptions.
+- TCGdex filters are contains matches; prefix a value with `eq:` for an exact match.
 - Caching uses Django's database cache backend (SQLite).
 - Every user-owned query is scoped to the signed-in user; other users' objects return 404.
 - Settings are deploy-ready: secret key, debug and allowed hosts come from environment variables, loaded locally from a git-ignored `.env`.

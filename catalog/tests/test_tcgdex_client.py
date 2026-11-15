@@ -131,3 +131,123 @@ def test_search_results_carry_the_low_quality_webp_tile_image():
         },
         {"id": "x-1", "local_id": "1", "name": "Pikachu", "tile_image": None},
     ]
+
+
+@pytest.mark.django_db
+@responses.activate
+def test_set_and_rarity_filters_are_exact_and_each_combination_is_cached_separately():
+    responses.get(CARDS_URL, json=PIKACHU)
+
+    for _ in range(2):
+        tcgdex.search_cards(set_id="sv03")
+        tcgdex.search_cards(rarity="Common")
+        tcgdex.search_cards(" Pika ", set_id="sv03", rarity="Common")
+
+    assert [call.request.params for call in responses.calls] == [
+        {"set.id": "eq:sv03"},
+        {"rarity": "eq:Common"},
+        {"name": "pika", "set.id": "eq:sv03", "rarity": "eq:Common"},
+    ]
+
+
+SERIES_URL = f"{tcgdex.BASE_URL}/series"
+
+
+def fake_series():
+    """TCGdex lists series and each series' sets oldest first; detail adds releaseDate."""
+    details = {
+        "base": ("Base", "1999-01-09", [("base1", "Base Set"), ("base2", "Jungle")]),
+        "sv": (
+            "Scarlet & Violet",
+            "2023-03-31",
+            [("sv01", "Scarlet & Violet"), ("sv02", "Paldea Evolved")],
+        ),
+        "swsh": ("Sword & Shield", "2020-02-07", [("swsh1", "Sword & Shield")]),
+    }
+    responses.get(SERIES_URL, json=[{"id": sid, "name": d[0]} for sid, d in details.items()])
+    for sid, (name, released, sets) in details.items():
+        responses.get(
+            f"{SERIES_URL}/{sid}",
+            json={
+                "id": sid,
+                "name": name,
+                "releaseDate": released,
+                "sets": [{"id": set_id, "name": set_name} for set_id, set_name in sets],
+            },
+        )
+
+
+@pytest.mark.django_db
+@responses.activate
+def test_set_groups_list_series_newest_first_with_their_sets_newest_first_and_are_cached():
+    fake_series()
+
+    groups = tcgdex.set_groups()
+    calls_after_first = len(responses.calls)
+
+    assert groups == [
+        {
+            "name": "Scarlet & Violet",
+            "sets": [
+                {"id": "sv02", "name": "Paldea Evolved"},
+                {"id": "sv01", "name": "Scarlet & Violet"},
+            ],
+        },
+        {"name": "Sword & Shield", "sets": [{"id": "swsh1", "name": "Sword & Shield"}]},
+        {
+            "name": "Base",
+            "sets": [{"id": "base2", "name": "Jungle"}, {"id": "base1", "name": "Base Set"}],
+        },
+    ]
+    assert tcgdex.set_groups() == groups
+    assert len(responses.calls) == calls_after_first == 4
+
+
+RARITIES_URL = f"{tcgdex.BASE_URL}/rarities"
+
+
+@pytest.mark.django_db
+@responses.activate
+def test_rarities_are_alphabetical_ignoring_case_and_cached():
+    responses.get(RARITIES_URL, json=["Uncommon", "Double rare", "Common", "ACE SPEC Rare"])
+
+    assert tcgdex.rarities() == ["ACE SPEC Rare", "Common", "Double rare", "Uncommon"]
+    assert tcgdex.rarities() == ["ACE SPEC Rare", "Common", "Double rare", "Uncommon"]
+    assert len(responses.calls) == 1
+
+
+@pytest.mark.django_db
+@responses.activate
+@pytest.mark.parametrize(
+    ("url", "load"),
+    [
+        pytest.param(RARITIES_URL, tcgdex.rarities, id="rarities"),
+        pytest.param(SERIES_URL, tcgdex.set_groups, id="set-groups"),
+    ],
+)
+@pytest.mark.parametrize(
+    "failure",
+    [
+        pytest.param({"status": 500}, id="http-500"),
+        pytest.param({"json": {"error": "surprise"}}, id="wrong-shape"),
+    ],
+)
+def test_option_list_failures_raise_provider_unavailable_and_trip_the_breaker(url, load, failure):
+    responses.get(url, **failure)
+
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        load()
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.search_cards("pika")
+
+    assert len(responses.calls) == 1
+
+
+@pytest.mark.django_db
+@responses.activate
+def test_a_series_detail_that_fails_makes_the_set_groups_unavailable():
+    responses.get(SERIES_URL, json=[{"id": "sv", "name": "Scarlet & Violet"}])
+    responses.get(f"{SERIES_URL}/sv", status=404)
+
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.set_groups()

@@ -28,6 +28,37 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 4: set and rarity filters
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 4`
+2. "Yes" (approved the three TDD behaviors)
+3. "Yes" (behavior 1: set and rarity filters are exact, and each combination is cached separately)
+4. "Yes" (move on to behavior 2)
+5. "Yes" (behavior 2: set options grouped by series, newest first, and cached)
+6. "Yes" (move on to behavior 3)
+7. "Yes" (behavior 3: the dropdowns show the unavailable message when their options can't load)
+8. "Yes" (all manual verification steps check out)
+9. "Yes to all" (add the `eq:` note to CLAUDE.md, correct the PRD, update PROMPTS.md)
+
+### Summary
+- **Outcome:**
+  - `search_cards(name, set_id, rarity)` sends only the filters that are filled in: the trimmed, lowercased name, plus `set.id=eq:<id>` and `rarity=eq:<rarity>`. Each combination has its own 24-hour cached list of results.
+  - The new `set_groups()` fetches `/series` and then each series' details at the same time (8 threads that only make HTTP requests), because the set list doesn't say which series a set belongs to. Series are sorted by `releaseDate` and sets reversed so both are newest first. The new `rarities()` sorts alphabetically, ignoring case. Both are cached for 24 hours.
+  - The circuit breaker moved into `_guarded(work)` so a job made of several requests shares it. `_fetch` now calls it. A 404 on a series that was in the list counts as the provider being unavailable.
+  - The search form has Set (grouped under series headings) and Rarity dropdowns. Set alone, rarity alone, or a combination counts as a search, and the page links keep all the filters. If the option lists can't load, the filter area shows a warning with Retry, the name box stays, and any chosen set and rarity are kept as hidden inputs.
+  - TDD covered three behaviors: building the filter query and caching it, set groups, and the dropdown fallback. Normal tests cover alphabetical rarities, option-list failures tripping the breaker, a failed series detail, the rendered optgroups, set-only, rarity-only and combined searches, and selections kept in page links. 72 tests pass; Ruff is clean.
+  - All five Phase 4 acceptance criteria are ticked in the plan, backed by tests and the user's manual checks.
+  - CLAUDE.md got one line on the `eq:` prefix. The PRD's "Facts verified" note was corrected.
+- **Deviations:**
+  - Every recommendation was accepted without changes.
+- **Sideways:**
+  - Live checks showed that the PRD's note was wrong: TCGdex's `set.id` and `rarity` filters are contains matches (`set.id=sv0` returned 2,825 cards, `sv03` returned 437 and `eq:sv03` returned 230). This was caught before the client was written, so the `eq:` prefix went into the first TDD test.
+  - Behaviors 1 and 2 first failed with a `TypeError` and a `NotImplementedError`, not real REDs. Claude added the parameters to the signature and made the stub return `[]`, then re-ran to get assertion failures.
+  - Adding the option lists to the view broke 9 existing view tests: requests nobody had faked tripped the breaker, so every search failed. An autouse fixture now fakes `/series` and `/rarities`, and the "no TCGdex call" assertions count only `/cards` searches.
+  - The first version of the fallback test sliced the page from the first `<form>`, which is the sign-out form in the navigation. It was changed to slice from the search form.
+  - During an outage while loading the options, the page shows two warnings, one for the filters and one for the search. Claude left this as is, because they describe two different things.
+
 ## 2026-11-15 — Implemented Phase 3: name search through a fail-safe TCGdex client
 
 ### Prompts

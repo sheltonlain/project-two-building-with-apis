@@ -8,7 +8,32 @@ from django.urls import reverse
 from catalog import tcgdex
 
 CARDS_URL = f"{tcgdex.BASE_URL}/cards"
+SERIES_URL = f"{tcgdex.BASE_URL}/series"
+RARITIES_URL = f"{tcgdex.BASE_URL}/rarities"
 SEARCH_URL = reverse("catalog:search")
+
+
+@pytest.fixture(autouse=True)
+def fake_filter_options():
+    """Every search page loads the set and rarity lists; fake small ones."""
+    responses.get(SERIES_URL, json=[{"id": "sv", "name": "Scarlet & Violet"}])
+    responses.get(
+        f"{SERIES_URL}/sv",
+        json={
+            "id": "sv",
+            "name": "Scarlet & Violet",
+            "releaseDate": "2023-03-31",
+            "sets": [{"id": "sv01", "name": "Scarlet & Violet"}, {"id": "sv03.5", "name": "151"}],
+        },
+    )
+    responses.get(RARITIES_URL, json=["Rare", "Common", "Double rare"])
+    yield
+    responses.reset()
+
+
+def search_calls():
+    """How many card searches were sent to TCGdex (option-list requests aren't counted)."""
+    return sum(call.request.url.split("?")[0] == CARDS_URL for call in responses.calls)
 
 
 def fake_cards(count):
@@ -48,7 +73,7 @@ def test_search_ids_are_fetched_once_then_paginated_from_the_cache(signed_in_cli
     assert tile_names(first) == [f"Pikachu {n}" for n in range(1, 25)]
     assert tile_names(last) == ["Pikachu 49", "Pikachu 50"]
     assert tile_names(repeat) == tile_names(first)
-    assert len(responses.calls) == 1
+    assert search_calls() == 1
 
 
 @responses.activate
@@ -60,7 +85,7 @@ def test_empty_search_asks_for_a_filter_and_makes_no_tcgdex_call(signed_in_clien
 
     assert response.status_code == 200
     assert "Pick a name, set or rarity to start." in response.content.decode()
-    assert len(responses.calls) == 0
+    assert search_calls() == 0
 
 
 def test_search_requires_sign_in(client, db):
@@ -77,7 +102,7 @@ def test_first_visit_shows_an_intro_and_makes_no_call(signed_in_client):
     content = response.content.decode()
     assert "Pick a name, set or rarity to start." not in content
     assert 'name="name"' in content
-    assert len(responses.calls) == 0
+    assert search_calls() == 0
 
 
 @responses.activate
@@ -126,7 +151,7 @@ def test_no_matches_says_so(signed_in_client):
     content = signed_in_client.get(SEARCH_URL, {"name": "zzzz"}).content.decode()
 
     assert "0 cards found" in content
-    assert "No cards match that name." in content
+    assert "No cards match your search." in content
 
 
 @responses.activate
@@ -198,3 +223,71 @@ def test_card_image_falls_back_to_the_placeholder_when_it_fails_to_load(signed_i
     assert "onerror=" in tile
     assert PLACEHOLDER in tile
     assert placeholder_is_hidden(tile)
+
+
+@responses.activate
+def test_filter_dropdowns_show_the_unavailable_message_when_their_options_cannot_load(
+    signed_in_client,
+):
+    responses.replace(responses.GET, SERIES_URL, status=503)
+
+    response = signed_in_client.get(SEARCH_URL, {"set": "sv01", "rarity": "Common"})
+
+    content = response.content.decode()
+    start = content.index('role="search"')
+    filters = content[start : content.index("</form>", start)]
+    assert response.status_code == 200
+    assert "We couldn't load the set and rarity lists from TCGdex" in filters
+    assert '<select name="set"' not in filters
+    assert '<input type="hidden" name="set" value="sv01">' in filters
+    assert '<input type="hidden" name="rarity" value="Common">' in filters
+    assert 'name="name"' in filters
+
+
+@responses.activate
+def test_set_dropdown_is_grouped_by_series_and_rarities_are_alphabetical(signed_in_client):
+    content = signed_in_client.get(SEARCH_URL).content.decode()
+
+    assert '<optgroup label="Scarlet &amp; Violet">' in content
+    assert content.index('value="sv03.5">151<') < content.index('value="sv01">Scarlet')
+    assert (
+        content.index('value="Common"')
+        < content.index('value="Double rare"')
+        < content.index('value="Rare"')
+    )
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    ("query", "sent"),
+    [
+        pytest.param({"set": "sv01"}, {"set.id": "eq:sv01"}, id="set-only"),
+        pytest.param({"rarity": "Common"}, {"rarity": "eq:Common"}, id="rarity-only"),
+        pytest.param(
+            {"name": "pika", "set": "sv01", "rarity": "Common"},
+            {"name": "pika", "set.id": "eq:sv01", "rarity": "eq:Common"},
+            id="combined",
+        ),
+    ],
+)
+def test_each_filter_alone_or_combined_is_a_valid_search(signed_in_client, query, sent):
+    responses.get(CARDS_URL, json=fake_cards(3))
+
+    content = signed_in_client.get(SEARCH_URL, {"name": "", **query}).content.decode()
+
+    assert "3 cards found" in content
+    card_searches = [c for c in responses.calls if c.request.url.split("?")[0] == CARDS_URL]
+    assert [c.request.params for c in card_searches] == [sent]
+
+
+@responses.activate
+def test_chosen_filters_stay_selected_and_are_kept_across_result_pages(signed_in_client):
+    responses.get(CARDS_URL, json=fake_cards(30))
+
+    content = signed_in_client.get(
+        SEARCH_URL, {"name": "pika", "set": "sv01", "rarity": "Common"}
+    ).content.decode()
+
+    assert 'href="?name=pika&amp;set=sv01&amp;rarity=Common&amp;page=2"' in content
+    assert '<option value="sv01" selected>' in content
+    assert '<option value="Common" selected>' in content

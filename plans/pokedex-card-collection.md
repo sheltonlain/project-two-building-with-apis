@@ -98,11 +98,11 @@ Add a set dropdown grouped by series (newest series first) and an alphabetical r
 
 ### Acceptance criteria
 
-- [ ] Set options appear under series headings, newest series first; rarity options are alphabetical.
-- [ ] Set-only, rarity-only and combined searches each work and get their own cached ID list.
-- [ ] Filter selections are kept in the query string across result pages.
-- [ ] When TCGdex is down, the filter area shows the unavailable message and the page still renders.
-- [ ] Tests cover combined filter query building and the dropdown fallback.
+- [x] Set options appear under series headings, newest series first; rarity options are alphabetical.
+- [x] Set-only, rarity-only and combined searches each work and get their own cached ID list.
+- [x] Filter selections are kept in the query string across result pages.
+- [x] When TCGdex is down, the filter area shows the unavailable message and the page still renders.
+- [x] Tests cover combined filter query building and the dropdown fallback.
 
 ---
 
