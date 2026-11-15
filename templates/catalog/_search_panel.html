@@ -1,0 +1,59 @@
+<div id="search-panel">
+  <form method="get" action="{% url 'catalog:search' %}" class="flex flex-wrap items-end gap-2 mb-4" role="search">
+    <label class="form-control grow">
+      <span class="label-text mb-1">Card name</span>
+      <input type="search" name="name" value="{{ name }}" placeholder="e.g. pika" class="input input-bordered w-full"{% if not searched %} autofocus{% endif %}>
+    </label>
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+
+  <div id="search-indicator" class="htmx-indicator flex items-center gap-2 mb-4" aria-live="polite">
+    <span class="loading loading-spinner loading-md"></span>
+    <span>Searching TCGdex…</span>
+  </div>
+
+  {% if unavailable %}
+    <div role="alert" class="alert alert-warning">
+      <span>We couldn't reach TCGdex, the card database. Check your internet connection, or try again in a minute.</span>
+      <a href="{% querystring %}" class="btn btn-sm">Retry</a>
+    </div>
+  {% elif needs_filter %}
+    <div role="alert" class="alert alert-info">Pick a name, set or rarity to start.</div>
+  {% elif searched %}
+    <p class="mb-4 font-semibold">{{ page.paginator.count }} card{{ page.paginator.count|pluralize }} found</p>
+
+    {% if page.object_list %}
+      <ul class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {% for card in page.object_list %}
+          <li class="card bg-base-100 shadow-sm" data-card-id="{{ card.id }}">
+            <figure class="px-3 pt-3">
+              {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+            </figure>
+            <div class="card-body p-3">
+              <h2 class="card-title text-base">{{ card.name }}</h2>
+              <div class="tile-details"></div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {% if page.paginator.num_pages > 1 %}
+        <nav class="join mt-6 flex flex-wrap justify-center" aria-label="Result pages">
+          {% for number in page_range %}
+            {% if number == page.paginator.ELLIPSIS %}
+              <span class="join-item btn btn-sm btn-disabled">…</span>
+            {% elif number == page.number %}
+              <span class="join-item btn btn-sm btn-active" aria-current="page">{{ number }}</span>
+            {% else %}
+              <a href="{% querystring page=number %}" class="join-item btn btn-sm">{{ number }}</a>
+            {% endif %}
+          {% endfor %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <p class="opacity-70">No cards match that name. Check the spelling or try part of the name.</p>
+    {% endif %}
+  {% else %}
+    <p class="opacity-70">Search the TCGdex catalog by card name. Part of a name works, for example "pika".</p>
+  {% endif %}
+</div>

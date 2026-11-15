@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Search cards{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-bold mb-4">Search cards</h1>
+
+{# The form lives inside the swapped panel so each response (and each history snapshot) #}
+{# carries the current search in the name box. #}
+<div hx-boost="true" hx-target="#search-panel" hx-swap="outerHTML" hx-indicator="#search-indicator">
+  {% include "catalog/_search_panel.html" %}
+</div>
+{% endblock %}

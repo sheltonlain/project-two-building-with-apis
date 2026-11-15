@@ -15,6 +15,7 @@
     <div class="flex-none">
       <ul class="menu menu-horizontal items-center gap-1">
         {% if user.is_authenticated %}
+          <li><a href="{% url 'catalog:search' %}">Search</a></li>
           <li><a href="{% url 'collection:index' %}">Collection</a></li>
           <li><a href="{% url 'collection:wishlist' %}">Wishlist</a></li>
           <li><a href="{% url 'accounts:account' %}">{{ user.username }}</a></li>

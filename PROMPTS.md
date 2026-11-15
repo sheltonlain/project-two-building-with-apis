@@ -28,6 +28,48 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 3: name search through a fail-safe TCGdex client
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 3`
+2. "Yes" (approved the three TDD behaviors)
+3. "yes, make it pass" (behavior 1: one failure trips the circuit breaker until it expires)
+4. "yes, move on to behavior 2"
+5. "yes, make it pass" (behavior 2: search IDs are fetched once, then paginated from the cache)
+6. "Yes" (move on to behavior 3: an empty search asks for a filter and makes no TCGdex call)
+7. "Yes" (continue with the rest of the phase)
+8. "All steps check out. For step 10, the back button does display earlier searches, but the search word does not appear in the text box. Additionally, I do want to note that if the interent is out, the search button warning should not read "This is not a problem on your end." I also want to add a placeholder image to cards that are missing images. I have an image in mind."
+9. "The path is static/images/placeholder_image. The card name and number should still appear. It should be used for both cases with no image and when the image fails to load."
+10. "Yes, these all pass"
+11. "Please write 1 to 2 sentences that you think could be included in CLAUDE.md"
+12. "add both to CLAUDE.md. Then let's update PROMPTS.md"
+
+### Summary
+- **Outcome:**
+  - `catalog/tcgdex.py` is the TCGdex client. Every request uses a 3 s connect / 5 s read timeout with no retries.
+  - Any failure (timeout, connection error, 5xx, invalid JSON, wrong-shaped data) sets a 60-second "TCGdex down" flag in the cache. While it is set, calls raise `ProviderUnavailable` without a request. A 404 raises `NotFound` and doesn't trip the flag.
+  - The full list of results for each search is cached for 24 hours. The cache key is a hash of the trimmed, lowercased name.
+  - `/search/` (signed-in only, with a "Search" nav link) shows "N cards found", 24 tiles per page with the image and name, and numbered page links that keep the query string (Django's `{% querystring %}`).
+  - HTMX swaps the search panel with a loading indicator. An empty search shows "Pick a name, set or rarity to start." with no call. A failed search shows the unavailable message and a Retry link that repeats the same query.
+  - Tiles use `…/low.webp` images. A reusable card-image snippet shows the user's placeholder card back, with the card's name and number, when a card has no image or its image fails to load.
+  - TDD covered three behaviors: the circuit breaker, cached pagination and the empty search. Normal tests cover each failure type, the timeout values, 404 handling, name normalization, the Retry link, page links, HTMX fragments, the search box after Back, sign-in and the placeholder. 58 tests pass; Ruff is clean.
+  - A real search for "PIKA" against live TCGdex returned 246 cards in 0.53 s, and the cached repeat took 0.001 s.
+  - All seven Phase 3 acceptance criteria are ticked in the plan, backed by tests and the user's manual checks.
+  - Two general rules were added to CLAUDE.md: error messages don't assume whose fault a failure is, and HTMX views and fragments keep the Back button working.
+- **Deviations:**
+  - Claude made search sign-in only, based on the PRD's Solution section. The user didn't comment on it.
+  - The user's manual check found that the search box stayed blank after pressing Back. It was fixed by moving the form inside the swapped panel, and a test was added.
+  - The user rejected the warning line "This isn't a problem on your end" because it is wrong when the user's own internet is out. It now reads "We couldn't reach TCGdex, the card database. Check your internet connection, or try again in a minute."
+  - The user added a placeholder image, which isn't in the plan. It was applied both to cards without an image and to images that fail to load. The second case was planned for Phase 5 but was built now at the user's request, with the name and number shown over it.
+  - The user asked Claude to propose CLAUDE.md sentences and accepted both.
+- **Sideways:**
+  - Behavior 3 had no real RED. The empty-search check was already part of the view scaffolding built for behavior 2, so its test passed the first time it ran. Claude said so and proved the test works by removing the check temporarily, watching both cases fail, and restoring it.
+  - Behavior 1 at first only tripped the breaker on transport and HTTP failures; data with the wrong shape would have raised `KeyError`/`TypeError`. Claude pointed this out after GREEN, and the restructure moved parsing inside the breaker.
+  - One test first expected the apostrophe in the warning to be HTML-escaped. Literal template text isn't escaped, so the assertion was corrected.
+  - The first placeholder tests matched exact whitespace inside the HTML tag. They were replaced with a regex check for the `hidden` attribute.
+  - The placeholder image is the official Pokémon card back, taken from an eBay listing. Claude noted the trademark in case the app is ever deployed publicly.
+  - The first edit to PROMPTS.md failed because its anchor text didn't match the file's indentation, and was redone with a different anchor.
+
 ## 2026-11-15 — Implemented Phase 2: Account page
 
 ### Prompts

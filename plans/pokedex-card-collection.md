@@ -78,13 +78,13 @@ Build the TCGdex client (timeouts, circuit breaker, custom exceptions) and a `/s
 
 ### Acceptance criteria
 
-- [ ] Partial name matches return results with a "N cards found" count and numbered pages.
-- [ ] A repeat search with the same filters is served from the cache and makes no network call.
-- [ ] An empty search shows the guidance message and makes no TCGdex call.
-- [ ] Any failure (timeout, connection error, 5xx, malformed response) sets the 60 s outage flag; while it is set, calls fail immediately without a network request; after it expires, the network is tried again.
-- [ ] A failed search shows the unavailable message and a Retry button that repeats the same query.
-- [ ] Tile images use the low-quality webp URL suffix.
-- [ ] Tests (with `responses`) cover the circuit breaker, timeout handling, the empty-search rule and pagination of cached ID lists.
+- [x] Partial name matches return results with a "N cards found" count and numbered pages.
+- [x] A repeat search with the same filters is served from the cache and makes no network call.
+- [x] An empty search shows the guidance message and makes no TCGdex call.
+- [x] Any failure (timeout, connection error, 5xx, malformed response) sets the 60 s outage flag; while it is set, calls fail immediately without a network request; after it expires, the network is tried again.
+- [x] A failed search shows the unavailable message and a Retry button that repeats the same query.
+- [x] Tile images use the low-quality webp URL suffix.
+- [x] Tests (with `responses`) cover the circuit breaker, timeout handling, the empty-search rule and pagination of cached ID lists.
 
 ---
 

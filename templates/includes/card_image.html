@@ -1,0 +1,20 @@
+{% load static %}
+{% comment %}
+  A card image with a fallback. Pass `src` (may be empty), `name` and `number`.
+  With no `src`, or if the image fails to load, the placeholder card shows instead, with the card's
+  name and number on it.
+{% endcomment %}
+<div class="card-image relative w-full aspect-[63/88]">
+  {% if src %}
+    <img src="{{ src }}" alt="{{ name }}" loading="lazy"
+         class="w-full h-full object-contain rounded"
+         onerror="this.hidden = true; this.nextElementSibling.hidden = false;">
+  {% endif %}
+  <div class="card-image-placeholder absolute inset-0 rounded overflow-hidden" {% if src %}hidden{% endif %}>
+    <img src="{% static 'images/placeholder_image.jfif' %}" alt="" class="w-full h-full object-cover">
+    <div class="absolute inset-x-2 bottom-2 rounded bg-black/70 text-white text-center px-2 py-1">
+      <span class="block font-semibold text-sm leading-tight">{{ name }}</span>
+      {% if number %}<span class="block text-xs opacity-80">#{{ number }}</span>{% endif %}
+    </div>
+  </div>
+</div>
