@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add From Anywhere</title>
+<!-- THROWAWAY PROTOTYPE. Not production code. Q9: how a user learns a wish was fulfilled when they add from a page without the wishlist. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0/daisyui.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.0.0"></script>
+<style>
+  /* Prototype chrome: deliberately NOT DaisyUI so it stays separate from the design being judged */
+  .proto { position: fixed; z-index: 9999; background: #111; color: #eee; font: 12px/1.4 ui-monospace, Consolas, monospace;
+           border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+  .proto button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; cursor: pointer; font: inherit; }
+  .proto button.on { background: #f0c419; color: #111; border-color: #f0c419; }
+  .proto .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .proto .lbl { color: #999; }
+  #proto-switcher { left: 12px; bottom: 12px; display: grid; gap: 6px; max-width: calc(100vw - 24px); }
+  #proto-db { right: 12px; bottom: 12px; width: min(460px, calc(100vw - 24px)); max-height: 45vh; overflow: auto; }
+  #proto-db table { width: 100%; border-collapse: collapse; margin: 4px 0 8px; }
+  #proto-db th, #proto-db td { text-align: left; padding: 2px 4px; border-bottom: 1px solid #333; }
+  #proto-db th { color: #999; font-weight: normal; }
+  #proto-db .hl { color: #f0c419; }
+  .phone-frame { max-width: 390px; margin: 16px auto 140px; border: 8px solid #222; border-radius: 28px; overflow: hidden; min-height: 760px; }
+  .flash { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: color-mix(in oklab, var(--color-primary) 25%, transparent); } to { background: transparent; } }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+
+<div id="frame"><div id="app" class="bg-base-200 min-h-screen pb-40"></div></div>
+
+<div id="proto-switcher" class="proto">
+  <div class="row">
+    <span class="lbl">Option</span>
+    <button id="prev" title="Previous (←)">◀</button>
+    <span id="vname"></span>
+    <button id="next" title="Next (→)">▶</button>
+  </div>
+  <div class="row">
+    <button id="phone">Phone width</button>
+    <button id="dbtoggle">Database</button>
+    <button id="reset">Reset</button>
+  </div>
+</div>
+<div id="proto-db" class="proto" hidden></div>
+
+<script>
+(() => { // own scope: the Tailwind browser build declares globals that would otherwise clash
+
+/* ---------------- demo data (real TCGdex cards) ---------------- */
+const CARDS = [
+  { id: "sv03.5-025", name: "Pikachu", set: "151", rarity: "Common", img: "https://assets.tcgdex.net/en/sv/sv03.5/025/low.webp", variants: { "Normal": 0.29, "Reverse holo": 0.66 } },
+  { id: "swsh7-75", name: "Sylveon VMAX", set: "Evolving Skies", rarity: "Holo Rare VMAX", img: "https://assets.tcgdex.net/en/swsh/swsh7/75/low.webp", variants: { "Holo": 19.56 } },
+  { id: "base1-4", name: "Charizard", set: "Base Set", rarity: "Rare", img: "https://assets.tcgdex.net/en/base/base1/4/low.webp", variants: { "Holo": 987.13, "1st Edition": null } },
+  { id: "swsh3-136", name: "Furret", set: "Darkness Ablaze", rarity: "Uncommon", img: "https://assets.tcgdex.net/en/swsh/swsh3/136/low.webp", variants: { "Normal": 0.26, "Reverse holo": 0.42 } },
+];
+const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
+const card = (id) => CARDS.find(c => c.id === id);
+const money = (n) => n == null ? "no USD price" : "$" + n.toFixed(2);
+const esc = (s) => String(s).replace(/[<>&"]/g, "");
+
+const OPTIONS = [
+  { key: "A", name: "Wishlist panel on every add page" },
+  { key: "B", name: "Note on the card + crossed-out row on Wishlist page" },
+  { key: "C", name: "Banner on Search, inline on Wishlist page" },
+];
+
+const pref = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+let opt = 1 /* open on Option B, the chosen direction */, phone = pref("afa-phone", "0") === "1", showDb = pref("afa-db", "0") === "1";
+let S, nextId, clock;
+
+function resetData() {
+  nextId = 100; clock = 0;
+  S = {
+    page: "search", q: "",
+    wishes: [
+      { id: 1, cardId: "sv03.5-025", variant: "Reverse holo", fulfilledAt: null, fulfilledBy: null },
+      { id: 2, cardId: "swsh7-75", variant: "Any variant", fulfilledAt: null, fulfilledBy: null },
+      { id: 3, cardId: "base1-4", variant: "Holo", fulfilledAt: null, fulfilledBy: null },
+    ],
+    copies: [{ id: 10, cardId: "swsh3-136", variant: "Normal", condition: "Near Mint" }],
+    last: null, flash: null, sel: {}, cond: {},
+  };
+}
+const K = () => OPTIONS[opt].key;
+const now = () => { clock++; return `2026-11-14 18:${String(30 + clock).padStart(2, "0")}`; };
+const wLabel = (w) => `${card(w.cardId).name} (${w.variant})`;
+const cLabel = (c) => `${card(c.cardId).name} (${c.variant})`;
+
+/* ---------------- actions ---------------- */
+// Options A and C only show a fulfilled wish until the next action, so those rows are cleaned up then.
+// Option B keeps fulfilled rows (with fulfilled_at) until the user clicks OK on the Wishlist page.
+function cleanup() { if (K() !== "B") S.wishes = S.wishes.filter(w => !w.fulfilledAt); }
+
+function addCopy(cardId, variant, condition, source) {
+  cleanup();
+  const copy = { id: nextId++, cardId, variant, condition };
+  S.copies.push(copy);
+  const active = S.wishes.filter(w => !w.fulfilledAt && w.cardId === cardId);
+  const wish = active.find(w => w.variant === variant) || active.find(w => w.variant === "Any variant");
+  if (wish) { wish.fulfilledAt = now(); wish.fulfilledBy = copy.id; }
+  S.last = { kind: wish ? "fulfilled" : "plain", cardId, copyId: copy.id, wishId: wish ? wish.id : null, source };
+  S.flash = "c" + copy.id;
+  render();
+}
+function undo(wishId) {
+  const w = S.wishes.find(x => x.id === wishId), c = S.copies.find(x => x.id === w.fulfilledBy);
+  S.copies = S.copies.filter(x => x.id !== w.fulfilledBy);
+  w.fulfilledAt = null; w.fulfilledBy = null;
+  S.last = { kind: "undone", text: `Undone. ${c ? cLabel(c) : "The copy"} was removed from your collection and ${wLabel(w)} is back on your wishlist.` };
+  S.flash = "w" + w.id; render();
+}
+// The "−" stepper: removes the most recently added copy of that card + variant.
+// If that copy had fulfilled a wish, the wish comes back (this replaces the old Undo link).
+function minus(cardId, variant) {
+  cleanup();
+  const mine = S.copies.filter(x => x.cardId === cardId && x.variant === variant);
+  const c = mine[mine.length - 1]; if (!c) return;
+  S.copies = S.copies.filter(x => x.id !== c.id);
+  const w = S.wishes.find(x => x.fulfilledBy === c.id);
+  if (w) { w.fulfilledAt = null; w.fulfilledBy = null; S.flash = "w" + w.id; }
+  S.last = { kind: "removed", cardId, source: "search",
+             text: `Removed one ${cLabel(c)}, ${c.condition}.` + (w ? ` ${wLabel(w)} is back on your wishlist.` : "") };
+  render();
+}
+function keep(wishId) {
+  const w = S.wishes.find(x => x.id === wishId);
+  w.fulfilledAt = null; w.fulfilledBy = null;
+  S.last = { kind: "undone", text: `${wLabel(w)} is back on your wishlist. You keep the copy you added.` };
+  S.flash = "w" + w.id; render();
+}
+function ok(wishId) {
+  S.wishes = S.wishes.filter(x => x.id !== wishId);
+  if (S.last && S.last.wishId === wishId) S.last = null;
+  render();
+}
+function gotIt(wishId) {
+  const w = S.wishes.find(x => x.id === wishId), vs = Object.keys(card(w.cardId).variants);
+  addCopy(w.cardId, w.variant === "Any variant" ? vs[0] : w.variant, "Near Mint", "wishlist");
+}
+
+/* ---------------- pieces ---------------- */
+const isVisibleFulfilled = (w) => w.fulfilledAt && (K() === "B" || (S.last && S.last.wishId === w.id));
+
+function ghostRow(w) {
+  const c = S.copies.find(x => x.id === w.fulfilledBy);
+  return `<li class="rounded-box border border-success/40 bg-success/10 px-3 py-2 text-sm grid gap-1">
+    <div class="flex justify-between gap-2"><span class="line-through opacity-60">${wLabel(w)}</span><span class="badge badge-success badge-sm">Got it</span></div>
+    <div class="text-xs">Moved to your collection${c ? ` as <b>${c.variant}</b>, ${c.condition}` : ""}${K() === "B" ? ` · ${w.fulfilledAt}` : ""}.</div>
+    <div class="flex flex-wrap gap-1">
+      <button class="btn btn-xs btn-outline" data-do="keep" data-w="${w.id}">Keep it on my wishlist</button>
+      <button class="btn btn-xs btn-ghost" data-do="ok" data-w="${w.id}">OK</button>
+    </div></li>`;
+}
+function wishRow(w, compact) {
+  return `<li class="flex justify-between items-center gap-2 text-sm rounded px-3 py-2 ${compact ? "" : "bg-base-100"} ${S.flash === "w" + w.id ? "flash" : ""}">
+    <span>${card(w.cardId).name} <span class="opacity-60">· ${w.variant}</span></span>
+    ${compact ? "" : `<button class="btn btn-xs btn-primary" data-do="gotit" data-w="${w.id}">Got it</button>`}</li>`;
+}
+function wishList(compact) {
+  const rows = S.wishes.map(w => w.fulfilledAt ? (isVisibleFulfilled(w) ? ghostRow(w) : "") : wishRow(w, compact)).join("");
+  return `<ul class="grid gap-2">${rows || `<li class="text-sm opacity-60 italic">Nothing on your wishlist.</li>`}</ul>`;
+}
+function undoneLine() {
+  return S.last && S.last.kind === "undone"
+    ? `<div role="alert" class="alert alert-info alert-soft text-sm mb-3"><span>↩️ ${S.last.text}</span><button class="btn btn-xs btn-ghost" data-do="clear">OK</button></div>` : "";
+}
+
+function cardNote(c) {
+  const L = S.last;
+  if (!L || L.source !== "search" || L.cardId !== c.id || L.kind === "undone" || K() === "C") return "";
+  if (L.kind === "removed") return `<div class="text-xs opacity-80">↩️ ${L.text}</div>`;
+  if (L.kind === "plain") return `<div class="text-xs text-success">✓ Added to your collection.</div>`;
+  const w = S.wishes.find(x => x.id === L.wishId);
+  if (!w) return `<div class="text-xs text-success">✓ Added to your collection.</div>`;
+  if (K() === "A") return `<div class="text-xs text-success">✓ Added. This fulfilled a wish. See the wishlist panel ${phone ? "below ↓" : "→"}</div>`;
+  return `<div class="text-xs rounded bg-success/10 text-success p-2">✓ Added. This fulfilled your wish for <b>${wLabel(w)}</b>. <a class="link font-semibold" data-nav="wishlist">View on wishlist →</a></div>`;
+}
+
+function cardTile(c) {
+  const vs = Object.keys(c.variants);
+  const sel = S.sel[c.id] || vs[0], cond = S.cond[c.id] || "Near Mint";
+  const owned = S.copies.filter(x => x.cardId === c.id);
+  const n = owned.filter(x => x.variant === sel).length;
+  const breakdown = vs.map(v => [v, owned.filter(x => x.variant === v).length]).filter(([, k]) => k).map(([v, k]) => `${k} ${v}`).join(", ");
+  const wishes = S.wishes.filter(w => w.cardId === c.id && !w.fulfilledAt);
+  return `<div class="card bg-base-100 shadow-sm" data-card="${c.id}">
+    <figure class="bg-base-300 px-4 pt-4"><img src="${c.img}" alt="${c.name}" class="h-44 object-contain" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'h-44 grid place-items-center text-sm opacity-60',textContent:'image unavailable'}))"></figure>
+    <div class="card-body p-4 gap-2">
+      <h3 class="font-semibold">${c.name}</h3>
+      <div class="text-xs opacity-70">${c.set} · ${c.rarity}</div>
+      ${wishes.length ? `<div class="flex flex-wrap gap-1">${wishes.map(w => `<span class="badge badge-sm badge-secondary badge-soft">On wishlist: ${w.variant}</span>`).join("")}</div>` : ""}
+      <select class="select select-sm w-full" data-f="variant" ${vs.length === 1 ? "disabled" : ""}>${vs.map(v => `<option ${v === sel ? "selected" : ""}>${v}</option>`).join("")}</select>
+      <select class="select select-sm w-full" data-f="condition">${CONDITIONS.map(k => `<option ${k === cond ? "selected" : ""}>${k}</option>`).join("")}</select>
+      <div class="text-sm"><span class="opacity-70">Price:</span> <b data-price>${money(c.variants[sel])}</b></div>
+      ${n === 0
+        ? `<button class="btn btn-primary btn-sm" data-do="add">Add to collection</button>`
+        : `<div class="join w-full">
+             <button class="btn btn-sm join-item" data-do="minus" aria-label="Remove one ${sel}">−</button>
+             <span class="join-item flex-1 flex items-center justify-center border border-base-300 text-sm font-semibold">${n} owned</span>
+             <button class="btn btn-sm btn-primary join-item" data-do="add" aria-label="Add one ${sel}">+</button>
+           </div>`}
+      ${breakdown ? `<div class="text-xs opacity-70">You own: ${breakdown}</div>` : ""}
+      ${cardNote(c)}
+    </div></div>`;
+}
+
+function searchBanner() {
+  const L = S.last;
+  if (K() !== "C" || !L || L.source !== "search" || L.kind === "undone") return "";
+  const c = S.copies.find(x => x.id === L.copyId); if (!c) return "";
+  const w = L.wishId && S.wishes.find(x => x.id === L.wishId);
+  return `<div role="alert" class="alert alert-success alert-soft mb-4">
+    <div class="grid gap-1"><div>✅ Added <b>${cLabel(c)}</b> to your collection.</div>
+      ${w ? `<div class="text-sm">💫 <b>${wLabel(w)}</b> was removed from your wishlist because you now own it.</div>` : ""}</div>
+    <div class="flex flex-wrap gap-1">
+      ${w ? `<button class="btn btn-sm btn-outline" data-do="undo" data-w="${w.id}">Undo</button><button class="btn btn-sm btn-ghost underline" data-do="keep" data-w="${w.id}">Keep it on my wishlist</button>` : ""}
+      <button class="btn btn-sm btn-ghost btn-circle" data-do="clear" aria-label="Close">✕</button>
+    </div></div>`;
+}
+
+/* ---------------- pages ---------------- */
+function searchPage() {
+  const sidebar = K() === "A";
+  const layout = sidebar && !phone ? "grid gap-6 grid-cols-[1fr_300px]" : "grid gap-6 grid-cols-1";
+  const grid = phone ? "grid gap-4 grid-cols-1" : sidebar ? "grid gap-4 grid-cols-2 xl:grid-cols-3" : "grid gap-4 grid-cols-2 xl:grid-cols-4";
+  return `${undoneLine()}${searchBanner()}
+    <div class="${layout}">
+      <section>
+        <label class="block mb-4"><span class="text-sm mb-1 block">Search demo cards (name, set or rarity)</span>
+          <input id="search" class="input w-full max-w-sm" placeholder="e.g. pika, base, holo" value="${esc(S.q)}" autocomplete="off"></label>
+        <div id="results" class="${grid}"></div>
+      </section>
+      ${sidebar ? `<aside class="card bg-base-100 shadow-sm h-fit"><div class="card-body p-4"><h2 class="card-title text-base">My wishlist</h2>${wishList(true)}</div></aside>` : ""}
+    </div>`;
+}
+function renderResults() {
+  const el = document.getElementById("results"); if (!el) return;
+  const q = S.q.trim().toLowerCase();
+  const shown = CARDS.filter(c => !q || [c.name, c.set, c.rarity, ...Object.keys(c.variants)].some(s => s.toLowerCase().includes(q)));
+  el.innerHTML = shown.length ? shown.map(cardTile).join("") : `<div class="alert">No demo cards match "${esc(q)}". Try pika, sylveon, base or holo.</div>`;
+}
+function wishlistPage() {
+  return `${undoneLine()}<h1 class="text-2xl font-bold mb-1">My wishlist</h1>
+    <p class="text-sm opacity-70 mb-4">"Got it" adds a Near Mint copy of the wished variant (or the first variant for "Any").</p>
+    <div class="max-w-xl">${wishList(false)}</div>`;
+}
+function collectionPage() {
+  const total = S.copies.reduce((t, c) => t + (card(c.cardId).variants[c.variant] || 0), 0);
+  return `${undoneLine()}<div class="flex justify-between items-baseline mb-4 max-w-xl"><h1 class="text-2xl font-bold">My collection</h1><span class="font-semibold">Value ${money(total)}</span></div>
+    <ul class="grid gap-2 max-w-xl">${S.copies.map(c => `<li class="flex justify-between gap-2 text-sm rounded bg-base-100 px-3 py-2 ${S.flash === "c" + c.id ? "flash" : ""}">
+      <span>${card(c.cardId).name} <span class="opacity-60">· ${c.variant} · ${c.condition}</span></span><span>${money(card(c.cardId).variants[c.variant])}</span></li>`).join("") || `<li class="opacity-60 italic text-sm">No cards yet.</li>`}</ul>`;
+}
+
+function render() {
+  const activeWishes = S.wishes.filter(w => !w.fulfilledAt).length;
+  const fulfilledWaiting = K() === "B" ? S.wishes.filter(w => w.fulfilledAt).length : 0;
+  const nav = (p, label, extra = "") => `<button class="btn btn-ghost btn-sm ${S.page === p ? "btn-active" : ""}" data-nav="${p}">${label}${extra}</button>`;
+  document.getElementById("app").innerHTML = `
+    <div class="navbar bg-base-100 shadow-sm px-4 gap-2 flex-wrap">
+      <div class="flex-1"><a class="text-xl font-bold">Pokedex</a></div>
+      <div class="flex gap-1 flex-wrap">
+        ${nav("search", "Search")}
+        ${nav("wishlist", "Wishlist", ` <span class="badge badge-sm">${activeWishes}</span>${fulfilledWaiting ? ` <span class="badge badge-sm badge-success">${fulfilledWaiting} got</span>` : ""}`)}
+        ${nav("collection", "Collection")}
+      </div>
+    </div>
+    <main class="${phone ? "p-3" : "max-w-6xl mx-auto p-4"}">
+      ${S.page === "search" ? searchPage() : S.page === "wishlist" ? wishlistPage() : collectionPage()}
+    </main>`;
+  renderResults();
+  renderChrome();
+  S.flash = null;
+}
+
+function renderChrome() {
+  document.getElementById("frame").className = phone ? "phone-frame" : "";
+  document.getElementById("vname").textContent = `${OPTIONS[opt].key} · ${OPTIONS[opt].name}`;
+  document.getElementById("phone").classList.toggle("on", phone);
+  document.getElementById("dbtoggle").classList.toggle("on", showDb);
+  const db = document.getElementById("proto-db");
+  db.hidden = !showDb;
+  if (showDb) db.innerHTML = `<div class="lbl">wishlist rows</div>
+    <table><tr><th>id</th><th>card</th><th>variant</th><th>fulfilled_at</th><th>by copy</th></tr>
+    ${S.wishes.map(w => `<tr class="${w.fulfilledAt ? "hl" : ""}"><td>${w.id}</td><td>${card(w.cardId).name}</td><td>${w.variant}</td><td>${w.fulfilledAt || "null"}</td><td>${w.fulfilledBy || "null"}</td></tr>`).join("") || `<tr><td colspan="5">none</td></tr>`}</table>
+    <div class="lbl">owned copy rows</div>
+    <table><tr><th>id</th><th>card</th><th>variant</th><th>condition</th></tr>
+    ${S.copies.map(c => `<tr><td>${c.id}</td><td>${card(c.cardId).name}</td><td>${c.variant}</td><td>${c.condition}</td></tr>`).join("")}</table>
+    <div class="lbl">${K() === "B" ? "B keeps fulfilled rows until you press OK on the Wishlist page." : "A/C delete fulfilled rows on your next action."}</div>`;
+}
+
+/* ---------------- events ---------------- */
+document.addEventListener("click", (e) => {
+  const n = e.target.closest("[data-nav]");
+  if (n) { e.preventDefault(); S.page = n.dataset.nav; if (S.last && S.last.kind === "undone") S.last = null; render(); return; }
+  const b = e.target.closest("[data-do]"); if (!b) return;
+  const w = +b.dataset.w, d = b.dataset.do;
+  if (d === "add") { const el = b.closest("[data-card]"); addCopy(el.dataset.card, el.querySelector('[data-f="variant"]').value, el.querySelector('[data-f="condition"]').value, "search"); }
+  if (d === "minus") { const el = b.closest("[data-card]"); minus(el.dataset.card, el.querySelector('[data-f="variant"]').value); }
+  if (d === "undo") undo(w);
+  if (d === "keep") keep(w);
+  if (d === "ok") ok(w);
+  if (d === "gotit") gotIt(w);
+  if (d === "clear") { cleanup(); S.last = null; render(); }
+});
+document.addEventListener("input", (e) => { if (e.target.id === "search") { S.q = e.target.value; renderResults(); } });
+document.addEventListener("change", (e) => {
+  const el = e.target.closest("[data-card]"); if (!el) return;
+  if (e.target.dataset.f === "condition") S.cond[el.dataset.card] = e.target.value;
+  if (e.target.dataset.f === "variant") { S.sel[el.dataset.card] = e.target.value; renderResults(); } // count + price follow the variant
+});
+const switchOpt = (d) => { opt = (opt + d + OPTIONS.length) % OPTIONS.length; save("afa-opt", opt); resetData(); render(); };
+document.getElementById("prev").onclick = () => switchOpt(-1);
+document.getElementById("next").onclick = () => switchOpt(1);
+document.getElementById("phone").onclick = () => { phone = !phone; save("afa-phone", phone ? "1" : "0"); render(); };
+document.getElementById("dbtoggle").onclick = () => { showDb = !showDb; save("afa-db", showDb ? "1" : "0"); renderChrome(); };
+document.getElementById("reset").onclick = () => { resetData(); render(); };
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, select, textarea")) return;
+  if (e.key === "ArrowLeft") switchOpt(-1);
+  if (e.key === "ArrowRight") switchOpt(1);
+});
+
+resetData(); render();
+})();
+</script>
+</body>
+</html>

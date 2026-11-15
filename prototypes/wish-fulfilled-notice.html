@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wish Fulfilled Notice</title>
+<!-- THROWAWAY PROTOTYPE. Not production code. Compares how the "wish fulfilled" message and its Undo links could look. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0/daisyui.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.0.0"></script>
+<style>
+  /* Prototype switcher: deliberately NOT DaisyUI so it stays visually separate from the design */
+  #proto-switcher { position: fixed; left: 12px; bottom: 12px; z-index: 9999; background: #111; color: #eee;
+    font: 12px/1.4 ui-monospace, Consolas, monospace; border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    display: grid; gap: 6px; max-width: calc(100vw - 24px); }
+  #proto-switcher button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; cursor: pointer; font: inherit; }
+  #proto-switcher button.on { background: #f0c419; color: #111; border-color: #f0c419; }
+  #proto-switcher .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #proto-switcher .lbl { color: #999; }
+  .flash { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: color-mix(in oklab, var(--color-primary) 25%, transparent); } to { background: transparent; } }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+
+<div class="navbar bg-base-100 shadow-sm px-4">
+  <div class="flex-1"><a class="text-xl font-bold">Pokedex</a></div>
+  <div class="flex gap-1">
+    <a class="btn btn-ghost btn-sm">Search</a>
+    <a class="btn btn-ghost btn-sm">My collection</a>
+    <a class="btn btn-ghost btn-sm">Wishlist</a>
+    <div class="avatar avatar-placeholder ml-2"><div class="bg-neutral text-neutral-content w-8 rounded-full"><span class="text-xs">SB</span></div></div>
+  </div>
+</div>
+
+<div id="banner-slot" class="max-w-6xl mx-auto px-4 pt-4"></div>
+
+<main class="max-w-6xl mx-auto p-4 grid gap-6 lg:grid-cols-[1fr_320px]">
+  <section>
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <label class="form-control">
+        <span class="label-text text-sm mb-1 block">Search demo cards (name, set or rarity)</span>
+        <input id="search" class="input input-bordered" placeholder="e.g. pika, base, holo" autocomplete="off">
+      </label>
+      <span class="text-sm opacity-70 pb-2"><span id="count"></span> · demo data only, no live API · prices are TCGplayer market (USD), fetched 2026-11-14</span>
+    </div>
+    <div id="results" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"></div>
+  </section>
+
+  <aside class="grid gap-4 content-start">
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-4">
+        <h2 class="card-title text-base">My wishlist</h2>
+        <ul id="wishlist" class="grid gap-1"></ul>
+      </div>
+    </div>
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body p-4">
+        <div class="flex justify-between items-baseline">
+          <h2 class="card-title text-base">My collection</h2>
+          <span id="total" class="text-sm font-semibold"></span>
+        </div>
+        <ul id="collection" class="grid gap-1"></ul>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div id="toast-slot"></div>
+
+<div id="proto-switcher">
+  <div class="row">
+    <span class="lbl">Placement</span>
+    <button id="prev" title="Previous (←)">◀</button>
+    <span id="vname"></span>
+    <button id="next" title="Next (→)">▶</button>
+  </div>
+  <div class="row">
+    <span class="lbl">Links</span>
+    <button data-links="A">A Undo</button>
+    <button data-links="B">B Keep wish</button>
+    <button data-links="C">C Both</button>
+    <button id="reset" title="Reset demo data">Reset</button>
+  </div>
+</div>
+
+<script>
+(() => { // own scope: the Tailwind browser build declares globals (e.g. `go`) that would otherwise clash
+/* ---------------- demo data (real TCGdex cards) ---------------- */
+const CARDS = [
+  { id: "sv03.5-025", name: "Pikachu", set: "151", rarity: "Common", img: "https://assets.tcgdex.net/en/sv/sv03.5/025/low.webp", variants: { "Normal": 0.29, "Reverse holo": 0.66 } },
+  { id: "swsh7-75", name: "Sylveon VMAX", set: "Evolving Skies", rarity: "Holo Rare VMAX", img: "https://assets.tcgdex.net/en/swsh/swsh7/75/low.webp", variants: { "Holo": 19.56 } },
+  { id: "base1-4", name: "Charizard", set: "Base Set", rarity: "Rare", img: "https://assets.tcgdex.net/en/base/base1/4/low.webp", variants: { "Holo": 987.13, "1st Edition": null } },
+  { id: "swsh3-136", name: "Furret", set: "Darkness Ablaze", rarity: "Uncommon", img: "https://assets.tcgdex.net/en/swsh/swsh3/136/low.webp", variants: { "Normal": 0.26, "Reverse holo": 0.42 } },
+];
+const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
+const card = (id) => CARDS.find(c => c.id === id);
+const money = (n) => n == null ? "no USD price" : "$" + n.toFixed(2);
+
+const VARIANTS = [
+  { key: "1", name: "Corner toast (auto-hides)" },
+  { key: "2", name: "Page banner (Django messages)" },
+  { key: "3", name: "Inline on the wishlist row" },
+];
+
+let S, nextId, toastTimer;
+function resetData() {
+  nextId = 100;
+  S = {
+    wishes: [
+      { id: 1, cardId: "sv03.5-025", variant: "Reverse holo" },
+      { id: 2, cardId: "swsh7-75", variant: "Any variant" },
+      { id: 3, cardId: "base1-4", variant: "Holo" },
+    ],
+    copies: [{ id: 10, cardId: "swsh3-136", variant: "Normal", condition: "Near Mint" }],
+    notice: null, flash: null, addedOn: null,
+  };
+}
+const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+let vIdx = +pref("wfn-variant", "0"), links = pref("wfn-links", "C");
+
+/* ---------------- actions ---------------- */
+function addCopy(cardId, variant, condition) {
+  const copy = { id: nextId++, cardId, variant, condition };
+  S.copies.push(copy);
+  let i = S.wishes.findIndex(w => w.cardId === cardId && w.variant === variant);
+  if (i < 0) i = S.wishes.findIndex(w => w.cardId === cardId && w.variant === "Any variant");
+  if (i >= 0) {
+    const [wish] = S.wishes.splice(i, 1);
+    S.notice = { kind: "fulfilled", copy, wish, wishIndex: i };
+  } else {
+    S.notice = { kind: "plain", copy };
+  }
+  S.flash = "c" + copy.id; S.addedOn = cardId;
+  render();
+}
+function undoAll() {
+  const n = S.notice;
+  S.copies = S.copies.filter(c => c.id !== n.copy.id);
+  S.wishes.splice(n.wishIndex, 0, n.wish);
+  S.notice = { kind: "undone", text: `Undone. ${label(n.copy)} was removed from your collection and ${wishLabel(n.wish)} is back on your wishlist.` };
+  S.flash = "w" + n.wish.id; S.addedOn = null;
+  render();
+}
+function keepWish() {
+  const n = S.notice;
+  S.wishes.splice(n.wishIndex, 0, n.wish);
+  S.notice = { kind: "undone", text: `${wishLabel(n.wish)} is back on your wishlist. You still keep the copy you added.` };
+  S.flash = "w" + n.wish.id;
+  render();
+}
+function dismiss() { S.notice = null; render(); }
+
+const label = (c) => `${card(c.cardId).name} (${c.variant})`;
+const wishLabel = (w) => `${card(w.cardId).name} (${w.variant})`;
+
+/* ---------------- notice content (shared by all placements) ---------------- */
+function linksHTML(size = "btn-xs") {
+  const undo = `<button class="btn ${size} btn-outline" data-do="undo">Undo</button>`;
+  const keep = `<button class="btn ${size} btn-ghost underline" data-do="keep">Keep it on my wishlist</button>`;
+  return links === "A" ? undo : links === "B" ? keep : undo + keep;
+}
+function noticeLines(n) {
+  if (n.kind === "plain") return { title: `✅ Added <b>${label(n.copy)}</b> to your collection.`, sub: "" };
+  if (n.kind === "undone") return { title: `↩️ ${n.text}`, sub: "" };
+  return { title: `✅ Added <b>${label(n.copy)}</b> to your collection.`,
+           sub: `💫 <b>${wishLabel(n.wish)}</b> was removed from your wishlist because you now own it.` };
+}
+
+/* ---------------- render ---------------- */
+function render() {
+  renderResults(); renderSidebar(); renderNotice(); renderSwitcher();
+  S.flash = null;
+}
+
+function renderResults() {
+  const q = (document.getElementById("search").value || "").trim().toLowerCase();
+  const shown = CARDS.filter(c => !q || [c.name, c.set, c.rarity, ...Object.keys(c.variants)].some(s => s.toLowerCase().includes(q)));
+  document.getElementById("count").textContent = `${shown.length} of ${CARDS.length} cards`;
+  if (!shown.length) { document.getElementById("results").innerHTML = `<div class="sm:col-span-2 xl:col-span-4 alert">No demo cards match "${q.replace(/[<>&"]/g, "")}". Try pika, sylveon, base or holo.</div>`; return; }
+  document.getElementById("results").innerHTML = shown.map(c => {
+    const vs = Object.keys(c.variants);
+    const wishes = S.wishes.filter(w => w.cardId === c.id);
+    const inlineAdded = VARIANTS[vIdx].key === "3" && S.addedOn === c.id && S.notice && S.notice.kind !== "undone";
+    return `<div class="card bg-base-100 shadow-sm" data-card="${c.id}">
+      <figure class="bg-base-300 px-4 pt-4"><img src="${c.img}" alt="${c.name}" class="h-48 object-contain" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'h-48 grid place-items-center text-sm opacity-60',textContent:'image unavailable'}))"></figure>
+      <div class="card-body p-4 gap-2">
+        <h3 class="font-semibold">${c.name}</h3>
+        <div class="text-xs opacity-70">${c.set} · ${c.rarity}</div>
+        ${wishes.length ? `<div class="flex flex-wrap gap-1">${wishes.map(w => `<span class="badge badge-sm badge-secondary badge-soft">On wishlist: ${w.variant}</span>`).join("")}</div>` : ""}
+        <select class="select select-sm w-full" data-f="variant" ${vs.length === 1 ? "disabled" : ""}>
+          ${vs.map(v => `<option>${v}</option>`).join("")}
+        </select>
+        <select class="select select-sm w-full" data-f="condition">
+          ${CONDITIONS.map(k => `<option ${k === "Near Mint" ? "selected" : ""}>${k}</option>`).join("")}
+        </select>
+        <div class="text-sm"><span class="opacity-70">Price:</span> <b data-price>${money(c.variants[vs[0]])}</b></div>
+        <button class="btn btn-primary btn-sm" data-do="add">Add to collection</button>
+        ${inlineAdded ? `<div class="text-xs text-success">${S.notice.kind === "fulfilled" ? "✓ Added. This fulfilled a wish, see your wishlist →" : "✓ Added to your collection."}</div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderSidebar() {
+  const n = S.notice, inline = VARIANTS[vIdx].key === "3";
+  const items = S.wishes.map(w => `<li class="flex justify-between gap-2 text-sm rounded px-2 py-1 ${S.flash === "w" + w.id ? "flash" : ""}">
+      <span>${card(w.cardId).name}</span><span class="opacity-70">${w.variant}</span></li>`);
+  if (inline && n && n.kind === "fulfilled") {
+    items.splice(n.wishIndex, 0, `<li class="rounded-box border border-success/40 bg-success/10 px-2 py-2 text-sm grid gap-1">
+      <div class="flex justify-between gap-2"><span class="line-through opacity-60">${card(n.wish.cardId).name}</span><span class="badge badge-success badge-sm">Got it</span></div>
+      <div class="text-xs">Moved to your collection as <b>${n.copy.variant}</b>, ${n.copy.condition}.</div>
+      <div class="flex flex-wrap gap-1">${linksHTML()}<button class="btn btn-xs btn-ghost" data-do="dismiss">OK</button></div>
+    </li>`);
+  }
+  if (inline && n && n.kind === "undone") {
+    items.unshift(`<li class="text-xs opacity-80 px-2 py-1">${noticeLines(n).title} <button class="link" data-do="dismiss">OK</button></li>`);
+  }
+  document.getElementById("wishlist").innerHTML = items.join("") || `<li class="text-sm opacity-60 italic">Nothing on your wishlist.</li>`;
+
+  document.getElementById("collection").innerHTML = S.copies.map(c => `<li class="flex justify-between gap-2 text-sm rounded px-2 py-1 ${S.flash === "c" + c.id ? "flash" : ""}">
+      <span>${card(c.cardId).name} <span class="opacity-60">· ${c.variant} · ${c.condition}</span></span>
+      <span>${money(card(c.cardId).variants[c.variant])}</span></li>`).join("") || `<li class="text-sm opacity-60 italic">No cards yet.</li>`;
+  const total = S.copies.reduce((t, c) => t + (card(c.cardId).variants[c.variant] || 0), 0);
+  document.getElementById("total").textContent = "Value " + money(total);
+}
+
+function renderNotice() {
+  const key = VARIANTS[vIdx].key, n = S.notice;
+  document.getElementById("banner-slot").innerHTML = "";
+  document.getElementById("toast-slot").innerHTML = "";
+  clearInterval(toastTimer);
+  if (!n || key === "3") return;
+  const { title, sub } = noticeLines(n);
+  const actions = n.kind === "fulfilled" ? linksHTML("btn-sm") : "";
+
+  if (key === "2") {
+    document.getElementById("banner-slot").innerHTML = `<div role="alert" class="alert ${n.kind === "undone" ? "alert-info" : "alert-success"} alert-soft">
+      <div class="grid gap-1"><div>${title}</div>${sub ? `<div class="text-sm">${sub}</div>` : ""}</div>
+      <div class="flex flex-wrap gap-1">${actions}<button class="btn btn-sm btn-ghost btn-circle" data-do="dismiss" aria-label="Close">✕</button></div>
+    </div>`;
+    return;
+  }
+
+  // key === "1": corner toast that hides itself after 10 seconds (pauses while hovered)
+  const life = 10000; let left = life, paused = false;
+  document.getElementById("toast-slot").innerHTML = `<div class="toast toast-end toast-bottom z-50">
+    <div id="toast" class="alert ${n.kind === "undone" ? "alert-info" : "alert-success"} shadow-lg w-80 sm:w-96 flex-col items-stretch gap-2">
+      <div class="flex justify-between gap-2"><div class="grid gap-1 text-sm"><div>${title}</div>${sub ? `<div>${sub}</div>` : ""}</div>
+        <button class="btn btn-xs btn-ghost btn-circle" data-do="dismiss" aria-label="Close">✕</button></div>
+      ${actions ? `<div class="flex flex-wrap gap-1">${actions}</div>` : ""}
+      <progress id="toast-bar" class="progress w-full h-1" value="100" max="100"></progress>
+    </div></div>`;
+  const t = document.getElementById("toast");
+  t.onmouseenter = () => paused = true; t.onmouseleave = () => paused = false;
+  toastTimer = setInterval(() => {
+    if (paused) return;
+    left -= 100; const bar = document.getElementById("toast-bar"); if (bar) bar.value = left / life * 100;
+    if (left <= 0) { clearInterval(toastTimer); dismiss(); }
+  }, 100);
+}
+
+function renderSwitcher() {
+  document.getElementById("vname").textContent = `${VARIANTS[vIdx].key}/${VARIANTS.length} · ${VARIANTS[vIdx].name}`;
+  document.querySelectorAll("[data-links]").forEach(b => b.classList.toggle("on", b.dataset.links === links));
+}
+
+/* ---------------- events ---------------- */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-do]"); if (!b) return;
+  const d = b.dataset.do;
+  if (d === "add") {
+    const el = b.closest("[data-card]");
+    addCopy(el.dataset.card, el.querySelector('[data-f="variant"]').value, el.querySelector('[data-f="condition"]').value);
+  }
+  if (d === "undo") undoAll();
+  if (d === "keep") keepWish();
+  if (d === "dismiss") dismiss();
+});
+document.getElementById("search").addEventListener("input", () => renderResults());
+document.addEventListener("change", (e) => {
+  if (e.target.dataset.f !== "variant") return;
+  const el = e.target.closest("[data-card]");
+  el.querySelector("[data-price]").textContent = money(card(el.dataset.card).variants[e.target.value]);
+});
+const go = (d) => { vIdx = (vIdx + d + VARIANTS.length) % VARIANTS.length; save("wfn-variant", vIdx); render(); };
+document.getElementById("prev").onclick = () => go(-1);
+document.getElementById("next").onclick = () => go(1);
+document.querySelectorAll("[data-links]").forEach(b => b.onclick = () => { links = b.dataset.links; save("wfn-links", links); render(); });
+document.getElementById("reset").onclick = () => { resetData(); render(); };
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, select, textarea")) return;
+  if (e.key === "ArrowLeft") go(-1);
+  if (e.key === "ArrowRight") go(1);
+});
+
+resetData(); render();
+})();
+</script>
+</body>
+</html>

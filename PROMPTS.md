@@ -28,6 +28,91 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-14 — Grilled the Pokedex design (30 questions, 3 prototypes) and wrote the PRD
+
+### Prompts
+1. `/grill-me @project-idea.md`
+   - Q1, how a card is stored locally: "a" (a shared Card table plus a per-user link table, which was recommended)
+   - Q2, collection vs. wishlist: "Option A and we'll explore the second copy more in the next question" (one model with a status field, which was recommended)
+2. `/prototype let's prototype the logic from this question and from the previous question, which asked about having a card just in the wishlist and just in the saved collection, not in both. I want to compare these features to see what makes the most user friendly experience to collectors`
+3. "I like option C the most, but I do have some questions. Does every card in the API come preloaded with a variant, or is this something the user would have to input themselves?" (Q3: picked one entry per copy with a variant)
+4. "Let's go with option A. I do also have a quick side note that I forgot to add in to project-idea.md -- I want card price to be a detail that we show for the cards, user collections, etc. I also want them to be able to track the total value of their card collection using our web application. We don't have to stop and address this right now, but I do want it to be added to project-idea.md and addressed during this grill-me session." (Q4: the simple five variant types, limited to what each card supports)
+5. "Let's go with option B" (Q5: optional condition field)
+6. "Let's go with option B, no condition on wishes" (Q6: a wish names a variant or "Any variant")
+7. "I like option A with the Undo link. Is there also a way we can add a message to let the user know the card was removed from their wishlist since it was added to their collection?" (Q7: automatic wish fulfillment)
+8. `/prototype prototype the UI for these options for me` (Q8: what Undo undoes)
+9. "The search is not working"
+10. "no cards are being displayed, so I cannot add them to the collection or wishlist"
+11. "I like placement 3, inline on the wishlist row, and option C" (Q8: notice inline on the wishlist row, with both Undo and "Keep it on my wishlist" links)
+12. `/prototype prototype the ui for these options` (Q9: what the user sees when adding from a page that doesn't show the wishlist)
+13. "I like option B, but I do have one suggestion. I don't like the undo button too much. I like everything else we have decided as far as the "keep on wishlist" option. Instead of the undo button, can we have an add to collection button that shows the quantity that we own on the card. Like a plus/minus situation that keeps count and easily let's us remove something if we didn't mean to add it?"
+14. "I like option B. One quick note, I don't like that the card condition does not change the price. Since we can't really calculate this, I think we should just get rid of the condition placeholder altogether." (Q10: which copy "−" removes)
+15. "B, and keep them as two models" (Q11: one row per user, card and variant, with a quantity)
+16. "Option A" (Q12: TCGplayer USD prices only)
+17. "Option B" (Q13: stored prices, refreshed when a card is fetched, plus a Refresh button)
+18. "Option A" (Q14: a CardVariant model holding prices)
+19. "Option C" (Q15: search tiles load their details through HTMX)
+20. "I like option A, and I'm okay with rule #2. Would rule #1 make our application very slow?" (Q16: set and rarity dropdowns)
+21. "What I really meant in my last question is would it make our application very slow if we did not implement rule #1? For this question, I do like option B if it is actually viable and does not slow down our app." (Q17: search pagination)
+22. "Let's just implement rule #1 so our application does not slow down and use our original option B with the cache."
+23. "I no longer want to have the public sharing feature as it seems too broad for the scope of this project. Let's remove that requirement from project.idea.md." (asked in reply to Q18, what users can make public)
+24. "If I go with your recommendation for now, can I add the email verification later?" (Q19: sign-up and sign-in method)
+25. "Option B" (Q20: username, email and password at sign-up)
+26. "Option B" (Q21: account info plus notes on cards)
+27. "Option A" (Q22: one collection tile per card and variant)
+28. "Option A and change the default." (Q23: sort options, with the default changed to date added)
+29. "Option B, same controls on wishlist" (Q24: collection and wishlist filters)
+30. "Option A" (Q25: Django REST Framework)
+31. "Option A" (Q26: DRF token authentication)
+32. "Option A, and the rules are fine" (Q27: API endpoints and create behavior)
+33. "Option C" (Q28: timeouts plus a 60-second "TCGdex down" flag)
+34. "Let's go with your recommendation" (Q29: hotlinked images with a placeholder)
+35. "Option C" (Q30: local now, but deploy-ready)
+36. `/to-prd`
+37. "update PROMPTS.md"
+
+### Summary
+- **Outcome:**
+  - A 30-question grill-me session settled the full Pokedex design:
+    - **Data model:** custom User, Card, CardVariant (with stored TCGplayer USD prices), OwnedCard (with quantity) and Wish (with "Any variant" and `fulfilled_at`).
+    - **Wishlist and collection behavior:** automatic wish fulfillment, plus a − N owned + stepper on search cards.
+    - **Search:** works through HTMX, with cached lists of result IDs for real page numbers. A search needs at least one filter.
+    - **Collection and wishlist pages:** filter and sort on local data.
+    - **API:** Django REST Framework with token authentication.
+    - **Failure handling:** a TCGdex circuit breaker.
+    - **Setup:** deploy-ready settings.
+  - `project-idea.md` was edited twice. Card prices and collection value were added as a new requirement. Public sharing was removed, and the requirements were renumbered #1–#12.
+  - Three throwaway prototypes were built in `prototypes/`:
+    - `collection-wishlist-models.html`: a logic comparison of three data models.
+    - `wish-fulfilled-notice.html`: notice placements and link options.
+    - `add-from-anywhere-notice.html`: multi-page navigation, later updated with the stepper.
+  - The PRD was written to `prd/pokedex-card-collection.md`. It has 92 user stories, the implementation decisions, an out-of-scope list and a table mapping requirements to user stories.
+  - Several design facts were checked against the live TCGdex API instead of assumed:
+    - variant flags and per-variant prices exist on every sampled card
+    - search results contain only ID, name and image
+    - the set, rarity and pagination filters work, but responses include no total count
+    - there are 221 sets, 21 series and 44 rarities
+    - response sizes and times for broad and blank searches
+  - Nothing was committed.
+- **Deviations:**
+  - **Q3:** after the logic prototype, the user picked per-copy entries with variants (C) over the recommended quantity field (B).
+  - **Q5:** the condition field (B) was chosen, then removed entirely in prompt 14 because it couldn't affect price.
+  - **Q8–Q9:** the recommended options were accepted (both links, then the card note plus the persistent wishlist row). The user then replaced Undo with a − N owned + stepper.
+  - **Q10:** B was picked over the recommended A. Removing condition then made the question moot.
+  - **Q16–Q17:** the user asked whether rule #1 would slow the app. Claude first answered a slightly different question, then re-answered with measured numbers. The user kept rule #1 and the cached page-number pagination.
+  - **Q18:** the user dropped public sharing from the requirements instead of choosing an option.
+  - **Q19:** the user asked whether email verification could be added later before accepting the recommendation.
+  - **Q23:** A was chosen over the conditional recommendation B, and the user accepted Claude's suggested change of default to "Date added."
+  - Every other question took the recommended option.
+- **Sideways:**
+  - **Prototype 2 search box:** it was a read-only placeholder, so the user reported search as "not working." Claude made it a working local filter.
+  - **Prototype 2 rendered no cards at all.** The Tailwind browser CDN script declares a global named `go`, which collided with the prototype's own `go` function and threw a SyntaxError, so the whole script failed. This was also the real reason search looked broken. It was found by loading the page in headless Edge and reading the console errors, then fixed by wrapping the script in its own scope. Later prototypes were checked in headless Edge before hand-off.
+  - **Headless Edge setup:** the first two attempts returned no output because Edge's output can't be captured directly in PowerShell. Redirecting output through `Start-Process` fixed it.
+  - **TCGdex outage:** TCGdex returned "no available server" on all requests during a timing test, then recovered within a minute. The incident was used to justify the circuit-breaker design (Q28).
+  - **Result counts:** in two PowerShell checks the counts printed wrong (as 1) because of a display quirk. The byte sizes were used instead, and a later check counted IDs with a regex.
+  - **Outdated prototype:** `add-from-anywhere-notice.html` still shows the condition dropdown, which was removed from the design after the prototype was built.
+  - **Undiscussed PRD details:** the PRD includes three details that were never asked about directly, and they were flagged for review: wishlist sort options, search results not creating Card rows, and showing only the oldest "as of" date on the collection total.
+
 ## 2026-11-14 — Researched free APIs, picked TCGdex, built and verified a console check script
 
 Session started 2026-11-12 (research) and continued 2026-11-14.

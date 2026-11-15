@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collection vs Wishlist Models</title>
+<!-- THROWAWAY PROTOTYPE. Not production code. Answers one design question for the Pokedex project. -->
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+    --accent: #3b5bdb; --accent-soft: #e7ecff;
+    --ok: #2b8a3e; --ok-soft: #e6f4ea;
+    --warn: #a65300; --warn-soft: #fff1e0;
+    --bad: #c92a2a; --bad-soft: #fdeaea;
+    --noop: #6b6b70; --noop-soft: #f0f0ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --panel: #1d1d20; --ink: #ececef; --muted: #9a9aa2; --line: #2e2e33;
+      --accent: #8ea2ff; --accent-soft: #252c4a;
+      --ok: #69db7c; --ok-soft: #1f3326;
+      --warn: #ffa94d; --warn-soft: #3a2a17;
+      --bad: #ff8787; --bad-soft: #3d1f1f;
+      --noop: #9a9aa2; --noop-soft: #26262a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  h3 { font-size: 14px; margin: 14px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  p { margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  .intro { max-width: 820px; margin-bottom: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .layout { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 1000px) { .layout { grid-template-columns: 360px 1fr; align-items: start; }
+                               .controls { position: sticky; top: 16px; } }
+  .controls { display: grid; gap: 16px; }
+  .models { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 700px) { .models { grid-template-columns: repeat(3, 1fr); } }
+  .model h2 { margin-bottom: 2px; }
+  .model .tag { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .tally { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 6px; }
+  ul.list li.changed { background: var(--accent-soft); outline: 1px solid var(--accent); }
+  ul.list li.empty { color: var(--muted); font-style: italic; }
+  .both { font-size: 11px; color: var(--accent); margin-left: 6px; }
+  .outcome { margin-top: 12px; padding: 8px 10px; border-radius: 6px; font-size: 13px; }
+  .k-ok { background: var(--ok-soft); color: var(--ok); }
+  .k-lost { background: var(--warn-soft); color: var(--warn); }
+  .k-blocked { background: var(--bad-soft); color: var(--bad); }
+  .k-noop { background: var(--noop-soft); color: var(--noop); }
+  .badge { font-weight: 600; margin-right: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 10px; }
+  .cost { font-size: 13px; color: var(--muted); margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 2px; }
+  select, button { font: inherit; }
+  select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .btns { display: grid; gap: 6px; }
+  button { padding: 7px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; text-align: left; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  @media (prefers-color-scheme: dark) { button.primary { color: #10121c; } }
+  button:disabled { opacity: .45; cursor: default; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .tabs button { font-size: 12px; padding: 4px 8px; }
+  .tabs button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .step { display: flex; gap: 8px; align-items: center; }
+  .step .num { width: 22px; flex: none; color: var(--muted); font-size: 13px; }
+  .step.done .num { color: var(--ok); }
+  .watch { background: var(--accent-soft); border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0 10px; }
+  .log { margin-top: 16px; }
+  .log-entry { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px; }
+  .log-entry .act { font-weight: 600; margin-bottom: 4px; }
+  .log-entry .line { padding: 2px 0; }
+  .friend li { align-items: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="intro">
+    <h1>Collection vs wishlist: which model fits collectors?</h1>
+    <p>Each button is something a collector actually does. Every action runs against <strong>three different ways of storing your cards</strong> at the same time, so you can see where each one helps, refuses, or silently gets it wrong.</p>
+    <p class="muted">Model A is what we picked so far (Q2: one list per card with a status; Q3: a quantity field). B and C are the alternatives. Nothing is saved; reload to start over.</p>
+    <div class="legend">
+      <span class="pill k-ok">Worked</span>
+      <span class="pill k-noop">Nothing changed</span>
+      <span class="pill k-blocked">Refused</span>
+      <span class="pill k-lost">Info lost or wrong</span>
+    </div>
+  </section>
+
+  <div class="layout">
+    <div class="controls">
+      <section class="panel">
+        <h2>Guided walkthroughs</h2>
+        <div class="tabs" id="tabs"></div>
+        <div id="scenario"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Free play</h2>
+        <div class="row2">
+          <div><label for="card">Card</label><select id="card"></select></div>
+          <div><label for="variant">Variant</label><select id="variant"></select></div>
+        </div>
+        <div class="btns" id="freeplay"></div>
+        <h3>Sam's public collection</h3>
+        <ul class="list friend" id="friend"></ul>
+        <div style="margin-top:12px"><button id="reset">Start over (empty collections)</button></div>
+      </section>
+    </div>
+
+    <div>
+      <section class="models" id="models"></section>
+      <section class="panel log">
+        <h2>What happened (newest first)</h2>
+        <div id="log"><p class="muted">Press a button to begin.</p></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===================== PURE LOGIC: no DOM in here ===================== */
+const Logic = (() => {
+  const CARDS = { pikachu: "Pikachu", charizard: "Charizard", eevee: "Eevee" };
+  const VARIANTS = ["Normal", "Reverse holo", "Holo"];
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const noVariant = (v) => v !== "Normal" ? ` This model has no variant field, so "${v}" wasn't recorded.` : "";
+
+  function describe(a) {
+    const n = CARDS[a.card], v = a.variant === "Normal" ? "" : `${a.variant} `;
+    switch (a.type) {
+      case "wish": return `Add ${v}${n} to my wishlist`;
+      case "acquire": return `I got a ${v}${n}`;
+      case "wantAnother": return `I want another ${v}${n}`;
+      case "giveAway": return `I traded away a ${v}${n}`;
+      case "unwish": return `Remove ${v}${n} from my wishlist`;
+      case "friendWish": return `Add Sam's ${v}${n} to my wishlist`;
+    }
+  }
+
+  /* ---- Model A: one row per card, status + quantity, never in both lists ---- */
+  const A = {
+    key: "A", name: "A · One list per card",
+    tag: "A card is either in your collection or on your wishlist, with a quantity.",
+    cost: "Stores: status (owned/wishlist) + quantity. One row per card. Simplest forms, filters and API.",
+    init: () => ({}),
+    apply(state, a) {
+      const s = clone(state), row = s[a.card], n = CARDS[a.card];
+      const done = (kind, msg) => ({ state: s, kind, msg });
+      const okOrLost = (msg) => a.variant !== "Normal" ? done("lost", msg + noVariant(a.variant)) : done("ok", msg);
+      switch (a.type) {
+        case "wish": case "friendWish":
+          if (!row) { s[a.card] = { status: "wishlist", qty: 1 }; return okOrLost(`${n} added to your wishlist.`); }
+          if (row.status === "wishlist") return done("noop", `${n} is already on your wishlist.`);
+          return done("blocked", `You already own ${n}. A card can only be in one list, so it can't go on your wishlist too.`);
+        case "wantAnother":
+          if (!row) { s[a.card] = { status: "wishlist", qty: 1 }; return okOrLost(`${n} added to your wishlist.`); }
+          if (row.status === "wishlist") { row.qty++; return okOrLost(`Now wanting ${row.qty}× ${n}.`); }
+          return done("blocked", `You own ${n}, so it can't also be on your wishlist. There's no way to say "I want one more."`);
+        case "acquire":
+          if (!row) { s[a.card] = { status: "owned", qty: 1 }; return okOrLost(`${n} added to your collection.`); }
+          if (row.status === "owned") { row.qty++; return okOrLost(`You now own ${row.qty}× ${n}.`); }
+          { const wanted = row.qty; s[a.card] = { status: "owned", qty: 1 };
+            if (wanted > 1) return done("lost", `${n} moved from wishlist to collection. You wanted ${wanted}, but the card left your wishlist, so the ${wanted - 1} more you wanted is forgotten.` + noVariant(a.variant));
+            return okOrLost(`${n} moved from your wishlist to your collection.`); }
+        case "giveAway":
+          if (!row || row.status !== "owned") return done("blocked", `You don't own ${n}.`);
+          if (row.qty > 1) { row.qty--; return done("ok", `You now own ${row.qty}× ${n}.`); }
+          delete s[a.card]; return done("ok", `That was your last ${n}, so it's removed from your collection.`);
+        case "unwish":
+          if (!row || row.status !== "wishlist") return done("blocked", `${n} isn't on your wishlist.`);
+          delete s[a.card]; return done("ok", `${n} removed from your wishlist.`);
+      }
+    },
+    view(s) {
+      const col = [], wish = [], rows = [];
+      for (const [c, r] of Object.entries(s)) {
+        (r.status === "owned" ? col : wish).push({ key: c, name: CARDS[c], detail: (r.status === "owned" ? "own " : "want ") + "×" + r.qty });
+        rows.push([CARDS[c], r.status, r.qty]);
+      }
+      return { col, wish, cols: ["card", "status", "quantity"], rows };
+    }
+  };
+
+  /* ---- Model B: one row per card with separate have / want counts ---- */
+  const B = {
+    key: "B", name: "B · Have & want counts",
+    tag: "Each card has a \"have\" number and a \"want\" number, so it can be in both lists.",
+    cost: "Stores: have count + want count. One row per card. Still simple. Lists filter on have > 0 or want > 0.",
+    init: () => ({}),
+    apply(state, a) {
+      const s = clone(state), n = CARDS[a.card];
+      const row = s[a.card] || (s[a.card] = { have: 0, want: 0 });
+      const tidy = () => { if (row.have === 0 && row.want === 0) delete s[a.card]; };
+      const done = (kind, msg) => { tidy(); return { state: s, kind, msg }; };
+      const okOrLost = (msg) => a.variant !== "Normal" ? done("lost", msg + noVariant(a.variant)) : done("ok", msg);
+      switch (a.type) {
+        case "wish": case "friendWish":
+          if (row.want > 0) return done("noop", `${n} is already on your wishlist.`);
+          row.want = 1; return okOrLost(`${n} added to your wishlist${row.have ? " (you also own " + row.have + ")" : ""}.`);
+        case "wantAnother":
+          row.want++; return okOrLost(`Now wanting ${row.want} more ${n}.`);
+        case "acquire":
+          row.have++;
+          if (row.want > 0) { row.want--; return okOrLost(`You now own ${row.have}× ${n}. One wish fulfilled${row.want ? ", still want " + row.want + " more" : ""}.`); }
+          return okOrLost(`You now own ${row.have}× ${n}.`);
+        case "giveAway":
+          if (row.have === 0) return done("blocked", `You don't own ${n}.`);
+          row.have--; return done("ok", row.have ? `You now own ${row.have}× ${n}.` : `That was your last ${n}.`);
+        case "unwish":
+          if (row.want === 0) return done("blocked", `${n} isn't on your wishlist.`);
+          row.want = 0; return done("ok", `${n} removed from your wishlist.`);
+      }
+    },
+    view(s) {
+      const col = [], wish = [], rows = [];
+      for (const [c, r] of Object.entries(s)) {
+        const both = r.have > 0 && r.want > 0;
+        if (r.have) col.push({ key: c, name: CARDS[c], detail: "own ×" + r.have, both });
+        if (r.want) wish.push({ key: c, name: CARDS[c], detail: "want ×" + r.want, both });
+        rows.push([CARDS[c], r.have, r.want]);
+      }
+      return { col, wish, cols: ["card", "have", "want"], rows };
+    }
+  };
+
+  /* ---- Model C: one row per physical copy or per wish, each with a variant ---- */
+  let nextId = 1;
+  const C = {
+    key: "C", name: "C · One entry per copy",
+    tag: "Every copy you own and every wish is its own entry, and each one records the variant.",
+    cost: "Stores: one row per copy or wish, plus a variant. Lists must group rows. Every add/remove form needs a variant picker. Most work for filters, API and tests.",
+    init: () => [],
+    apply(state, a) {
+      const s = clone(state), n = CARDS[a.card], v = a.variant;
+      const done = (kind, msg) => ({ state: s, kind, msg });
+      const find = (kind, variant) => s.findIndex(r => r.kind === kind && r.card === a.card && (variant === undefined || r.variant === variant));
+      const others = (kind) => [...new Set(s.filter(r => r.kind === kind && r.card === a.card && r.variant !== v).map(r => r.variant))];
+      switch (a.type) {
+        case "wish": case "friendWish":
+          if (find("wish", v) >= 0) return done("noop", `${v} ${n} is already on your wishlist.`);
+          s.push({ id: nextId++, kind: "wish", card: a.card, variant: v });
+          return done("ok", `${v} ${n} added to your wishlist.`);
+        case "wantAnother":
+          s.push({ id: nextId++, kind: "wish", card: a.card, variant: v });
+          return done("ok", `Now wanting ${s.filter(r => r.kind === "wish" && r.card === a.card && r.variant === v).length}× ${v} ${n}.`);
+        case "acquire": {
+          s.push({ id: nextId++, kind: "copy", card: a.card, variant: v });
+          const w = find("wish", v);
+          if (w >= 0) { s.splice(w, 1); return done("ok", `Added a ${v} ${n} and fulfilled one wish for it.`); }
+          const o = others("wish");
+          if (o.length) return done("ok", `Added a ${v} ${n}. Your wish for ${o.join(" / ")} ${n} stays open because it's a different variant.`);
+          return done("ok", `Added a ${v} ${n} to your collection.`);
+        }
+        case "giveAway": {
+          const i = find("copy", v);
+          if (i >= 0) { s.splice(i, 1); return done("ok", `Removed one ${v} ${n} from your collection.`); }
+          const o = others("copy");
+          if (o.length) return done("blocked", `You don't own a ${v} ${n}. You own: ${o.join(", ")}. You have to pick exactly which copy you traded.`);
+          return done("blocked", `You don't own ${n}.`);
+        }
+        case "unwish": {
+          const before = s.length;
+          for (let i = s.length - 1; i >= 0; i--) if (s[i].kind === "wish" && s[i].card === a.card && s[i].variant === v) s.splice(i, 1);
+          if (s.length < before) return done("ok", `${v} ${n} removed from your wishlist.`);
+          const o = others("wish");
+          return done("blocked", o.length ? `No ${v} ${n} on your wishlist. You wished for: ${o.join(", ")}.` : `${n} isn't on your wishlist.`);
+        }
+      }
+    },
+    view(s) {
+      const group = (kind) => {
+        const m = new Map();
+        for (const r of s.filter(r => r.kind === kind)) { const k = r.card + "|" + r.variant; m.set(k, (m.get(k) || 0) + 1); }
+        return [...m].map(([k, c]) => { const [card, variant] = k.split("|"); return { key: k, card, name: `${CARDS[card]} (${variant})`, detail: (kind === "copy" ? "own ×" : "want ×") + c }; });
+      };
+      const col = group("copy"), wish = group("wish");
+      const ownedCards = new Set(col.map(x => x.card)), wishCards = new Set(wish.map(x => x.card));
+      [...col, ...wish].forEach(x => x.both = ownedCards.has(x.card) && wishCards.has(x.card));
+      return { col, wish, cols: ["#", "kind", "card", "variant"], rows: s.map(r => [r.id, r.kind === "copy" ? "owned copy" : "wish", CARDS[r.card], r.variant]) };
+    }
+  };
+
+  const FRIEND = [
+    { card: "charizard", variant: "Holo" },
+    { card: "eevee", variant: "Reverse holo" },
+    { card: "pikachu", variant: "Normal" },
+  ];
+
+  const S = (type, card, variant = "Normal") => ({ type, card, variant });
+  const SCENARIOS = [
+    { title: "Happy path", desc: "You add a card to your wishlist, then you get it. This is the most common thing collectors do.",
+      watch: "All three should agree. The choice only matters in the trickier cases.",
+      steps: [S("wish", "pikachu"), S("acquire", "pikachu")] },
+    { title: "Wanted two, got one", desc: "You want two Eevees, one to keep and one to trade. One shows up.",
+      watch: "A moves Eevee to your collection and forgets you still wanted one more. B and C remember.",
+      steps: [S("wish", "eevee"), S("wantAnother", "eevee"), S("acquire", "eevee")] },
+    { title: "Own one, want a second", desc: "You already own a Charizard and decide you want a second copy.",
+      watch: "A refuses, because Charizard is already in your collection. B and C allow it.",
+      steps: [S("acquire", "charizard"), S("wantAnother", "charizard")] },
+    { title: "Friend's holo", desc: "You own a normal Charizard. Sam's public collection has a Holo Charizard, and you add it to your wishlist (requirement #10).",
+      watch: "A refuses. B accepts but forgets that you wanted the holo specifically. Only C records it.",
+      steps: [S("acquire", "charizard"), S("friendWish", "charizard", "Holo")] },
+    { title: "Wrong variant arrives", desc: "You want a Reverse holo Pikachu. A friend gives you a normal one.",
+      watch: "A and B count your wish as fulfilled. They show it as working, but it's wrong, and they can't tell. Only C keeps the reverse-holo wish open.",
+      steps: [S("wish", "pikachu", "Reverse holo"), S("acquire", "pikachu")] },
+    { title: "Trade one away (C's cost)", desc: "You own a Reverse holo Pikachu. You trade it away but tap \"Normal\" out of habit.",
+      watch: "A and B just subtract one. C refuses until you name the exact copy. Tracking variants is more precise, but it costs more clicks.",
+      steps: [S("acquire", "pikachu", "Reverse holo"), S("giveAway", "pikachu")] },
+  ];
+
+  return { CARDS, VARIANTS, MODELS: [A, B, C], FRIEND, SCENARIOS, describe, S };
+})();
+
+/* ===================== PAGE SHELL ===================== */
+const $ = (id) => document.getElementById(id);
+let state, last, tallies, log, prevViews;
+let activeTab = 0, stepIndex = 0;
+
+function reset() {
+  state = {}; last = {}; tallies = {}; log = []; prevViews = null;
+  for (const M of Logic.MODELS) { state[M.key] = M.init(); tallies[M.key] = { blocked: 0, lost: 0 }; }
+}
+
+function dispatch(action) {
+  prevViews = Object.fromEntries(Logic.MODELS.map(M => [M.key, M.view(state[M.key])]));
+  const entry = { label: Logic.describe(action), results: [] };
+  for (const M of Logic.MODELS) {
+    const r = M.apply(state[M.key], action);
+    state[M.key] = r.state; last[M.key] = r;
+    if (r.kind === "blocked") tallies[M.key].blocked++;
+    if (r.kind === "lost") tallies[M.key].lost++;
+    entry.results.push({ model: M.name, kind: r.kind, msg: r.msg });
+  }
+  log.unshift(entry);
+  render();
+}
+
+const KIND_LABEL = { ok: "Worked", noop: "Nothing changed", blocked: "Refused", lost: "Info lost or wrong" };
+
+function listHTML(items, prevItems) {
+  if (!items.length) return `<ul class="list"><li class="empty">empty</li></ul>`;
+  const prev = new Map((prevItems || []).map(i => [i.key, i.detail]));
+  return `<ul class="list">` + items.map(i => {
+    const changed = prevViews && prev.get(i.key) !== i.detail;
+    return `<li class="${changed ? "changed" : ""}"><span>${i.name}${i.both ? '<span class="both">in both lists</span>' : ""}</span><span class="muted">${i.detail}</span></li>`;
+  }).join("") + `</ul>`;
+}
+
+function render() {
+  $("models").innerHTML = Logic.MODELS.map(M => {
+    const v = M.view(state[M.key]), p = prevViews && prevViews[M.key], r = last[M.key], t = tallies[M.key];
+    return `<article class="panel model">
+      <h2>${M.name}</h2>
+      <div class="tag">${M.tag}</div>
+      <div class="tally"><span class="pill k-blocked">Refused: ${t.blocked}</span><span class="pill k-lost">Info lost or wrong: ${t.lost}</span></div>
+      <h3>My collection</h3>${listHTML(v.col, p && p.col)}
+      <h3>My wishlist</h3>${listHTML(v.wish, p && p.wish)}
+      ${r ? `<div class="outcome k-${r.kind}"><span class="badge">${KIND_LABEL[r.kind]}:</span>${r.msg}</div>` : ""}
+      <details><summary>What's stored in the database (${v.rows.length} row${v.rows.length === 1 ? "" : "s"})</summary>
+        <table><tr>${v.cols.map(c => `<th>${c}</th>`).join("")}</tr>
+        ${v.rows.map(row => `<tr>${row.map(c => `<td>${c}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${v.cols.length}" class="muted">no rows</td></tr>`}</table>
+      </details>
+      <div class="cost">${M.cost}</div>
+    </article>`;
+  }).join("");
+
+  $("log").innerHTML = log.length ? log.map(e => `<div class="log-entry"><div class="act">${e.label}</div>${
+    e.results.map(r => `<div class="line"><span class="pill k-${r.kind}">${KIND_LABEL[r.kind]}</span> <strong>${r.model.split(" · ")[0]}</strong> ${r.msg}</div>`).join("")
+  }</div>`).join("") : `<p class="muted">Press a button to begin.</p>`;
+
+  renderScenario();
+}
+
+function renderTabs() {
+  $("tabs").innerHTML = Logic.SCENARIOS.map((s, i) => `<button class="${i === activeTab ? "active" : ""}" data-tab="${i}">${i + 1}. ${s.title}</button>`).join("");
+  $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => startScenario(+b.dataset.tab));
+}
+
+function startScenario(i) {
+  activeTab = i; stepIndex = 0; reset(); renderTabs(); render();
+}
+
+function renderScenario() {
+  const s = Logic.SCENARIOS[activeTab];
+  const finished = stepIndex >= s.steps.length;
+  $("scenario").innerHTML = `<p>${s.desc}</p><div class="watch"><strong>Watch for:</strong> ${s.watch}</div>
+    <div class="btns">${s.steps.map((st, i) => `<div class="step ${i < stepIndex ? "done" : ""}"><span class="num">${i < stepIndex ? "✓" : i + 1 + "."}</span>
+      <button class="${i === stepIndex ? "primary" : ""}" data-step="${i}" ${i !== stepIndex ? "disabled" : ""} style="flex:1">${Logic.describe(st)}</button></div>`).join("")}</div>
+    ${finished ? `<p class="muted" style="margin-top:10px">Done. Compare the three columns, then try the next tab, or <a href="#" id="restart">replay this one</a>.</p>` : `<p class="muted" style="margin-top:10px">Starting a walkthrough empties all collections first.</p>`}`;
+  $("scenario").querySelectorAll("button[data-step]").forEach(b => b.onclick = () => { stepIndex++; dispatch(s.steps[+b.dataset.step]); });
+  const r = $("restart"); if (r) r.onclick = (e) => { e.preventDefault(); startScenario(activeTab); };
+}
+
+function setupFreePlay() {
+  $("card").innerHTML = Object.entries(Logic.CARDS).map(([k, n]) => `<option value="${k}">${n}</option>`).join("");
+  $("variant").innerHTML = Logic.VARIANTS.map(v => `<option>${v}</option>`).join("");
+  const actions = [["wish", "Add to my wishlist"], ["acquire", "I got a copy"], ["wantAnother", "I want another copy"],
+                   ["giveAway", "I traded / sold a copy away"], ["unwish", "Remove from my wishlist"]];
+  $("freeplay").innerHTML = actions.map(([t, l]) => `<button data-act="${t}">${l}</button>`).join("");
+  $("freeplay").querySelectorAll("button").forEach(b => b.onclick = () => dispatch(Logic.S(b.dataset.act, $("card").value, $("variant").value)));
+  $("friend").innerHTML = Logic.FRIEND.map((f, i) => `<li><span>${Logic.CARDS[f.card]} <span class="muted">(${f.variant})</span></span><button data-f="${i}">Add to my wishlist</button></li>`).join("");
+  $("friend").querySelectorAll("button").forEach(b => b.onclick = () => { const f = Logic.FRIEND[+b.dataset.f]; dispatch(Logic.S("friendWish", f.card, f.variant)); });
+  $("reset").onclick = () => { reset(); stepIndex = 0; render(); };
+}
+
+reset(); setupFreePlay(); renderTabs(); render();
+</script>
+</body>
+</html>
