@@ -28,6 +28,26 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Turned the PRD into a 14-phase tracer-bullet plan
+
+### Prompts
+1. `/prd-to-plan`
+2. "I'm okay with th4 granularity and order. If we combined 14 and 15, would that make 14 a lot heavier than it is now?"
+3. "yes, merge them and write the plan"
+4. "Log this session to PROMPTS.md and commit and push changes to GitHub with the message "Made plan with prd-to-plan skill""
+
+### Summary
+- **Outcome:**
+  - Claude read `prd/pokedex-card-collection.md` and checked the repo, which has no Django code yet. It proposed the durable decisions and 15 vertical-slice phases, each mapped to PRD user stories.
+  - The user accepted the granularity and order. The two API phases (token + collection API, wishlist API) were merged into one, giving 14 phases.
+  - The plan was written to `plans/pokedex-card-collection.md`. Its header records the stack, the four apps, the models and how they relate, the URL patterns, sign-in and per-user data ownership, the TCGdex client rules and the shared services module. Each phase has its user stories, a description of what to build and acceptance criteria.
+- **Deviations:**
+  - The user asked whether merging Phases 14 and 15 would make Phase 14 much heavier. Claude estimated about 20–30% more work, because the wishlist API reuses Phase 14's setup, and recommended the merge. The user accepted.
+  - Claude's other suggested options were not taken: merging Phases 3+4 or 7+8, moving notes earlier, and splitting wish fulfillment into two phases.
+- **Sideways:**
+  - Nothing went wrong.
+  - The URL paths in the plan header (such as `/search/card/<tcgdex_id>/` and `/account/`) were proposed by Claude. The PRD doesn't specify them.
+
 ## 2026-11-14 — Grilled the Pokedex design (30 questions, 3 prototypes) and wrote the PRD
 
 ### Prompts
