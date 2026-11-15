@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Account{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-bold mb-4">Account</h1>
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <p><span class="font-semibold">Username:</span> {{ user.username }}</p>
+    <p><span class="font-semibold">Email:</span> {{ user.email }}</p>
+    <p class="opacity-70 text-sm">Editing your details arrives in the next phase.</p>
+  </div>
+</div>
+{% endblock %}

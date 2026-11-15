@@ -28,6 +28,42 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 1: project skeleton and sign up / sign in / sign out
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement Phase 1`
+2. "yes, go ahead with those three" (approved the three TDD behaviors)
+3. "yes, make it pass" (behavior 1: duplicate email rejected, ignoring case)
+4. "add the model-level fix now, then move to behavior 2"
+5. "yes, make it pass" (behavior 2: anonymous visitors redirected to sign-in)
+6. "yes, move on to behavior 3"
+7. "yes, make it pass" (behavior 3: valid sign-up signs the user in and redirects)
+8. "yes, continue with the rest of Phase 1"
+9. "Evrything passes except I don't understand the instructions in step 7"
+10. "step 7 passes too, both files load"
+11. "Are any of these  feature-specific business rules or predict commands or project structure? We don't want anything like that in CLAUDE.md, and we want to keep this file very straightforward without verbose explanations."
+12. "write the PROMPTS.md entry now, then commit and push"
+
+### Summary
+- **Outcome:**
+  - Built the `pokedex` project with the `accounts`, `catalog`, `collection` and `api` apps. Settings come from environment variables (`.env`, git-ignored; `.env.example` committed). Also set up the database cache, Tailwind + DaisyUI through django-tailwind-cli, HTMX 2.0.4 from a CDN, and pytest and Ruff configuration in `pyproject.toml`.
+  - The custom User model is in the first migration. Email is required and unique ignoring case, enforced by the sign-up form and a database constraint.
+  - Built sign-up (signs the user in and goes to the collection), Django's sign-in and sign-out, and placeholder Collection, Wishlist and Account pages behind sign-in. The base layout's navigation changes when signed in.
+  - TDD covered three behaviors: duplicate email rejected ignoring case, anonymous redirects to sign-in, and valid sign-up signing the user in. Normal tests cover duplicate usernames, sign-in and sign-out, the layout and nav, and environment-based settings. 20 tests pass; Ruff is clean.
+  - The README has setup steps. All seven Phase 1 acceptance criteria are ticked in the plan, backed by tests and the user's manual checks. CLAUDE.md was not changed.
+- **Deviations:**
+  - After behavior 1, Claude pointed out that the email check only lived in the form. The user asked for the database-level fix right away instead of waiting for Phase 2.
+  - The user didn't understand manual step 7 (Network tab check). Claude re-explained it with a simpler "view page source" method plus step-by-step dev-tools instructions.
+  - Claude offered five possible CLAUDE.md additions. The user asked whether they were feature rules, commands or project structure; Claude agreed they all were (or were tooling notes) and added none.
+  - The implement skill says to update PROMPTS.md, but PROMPTS.md says entries are added only by its own prompt. Claude asked, and the user said to write the entry.
+- **Sideways:**
+  - A Bash `cd` into `.venv/.../django_tailwind_cli` to inspect the package carried over as the working directory. It was caught and reset before creating the project.
+  - The Grep tool found nothing in `.venv` (it's git-ignored), so Bash `grep` was used to find the DaisyUI setting.
+  - `ruff format .` reformatted the earlier `scripts/tcgdex_check.py`, which also has lint errors. The change was reverted and `scripts/` was excluded from Ruff.
+  - The first migration was regenerated, not added to, when the case-insensitive email constraint was introduced, since nothing had been committed or shared.
+  - Emptying the app stub files with `Set-Content -Encoding utf8NoBOM` failed on Windows PowerShell 5.1; the fallback `WriteAllText` did the job.
+  - In the server smoke test, PowerShell couldn't read the `/collection/` redirect header. The redirect was already covered by tests and later confirmed manually.
+
 ## 2026-11-15 — Turned the PRD into a 14-phase tracer-bullet plan
 
 ### Prompts

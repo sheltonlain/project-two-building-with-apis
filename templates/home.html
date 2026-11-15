@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="hero bg-base-100 rounded-box shadow py-12">
+  <div class="hero-content text-center">
+    <div class="max-w-md">
+      <h1 class="text-4xl font-bold">Pokedex</h1>
+      <p class="py-4">Track the Pokémon cards you own, the ones you want, and what your collection is worth.</p>
+      {% if user.is_authenticated %}
+        <a href="{% url 'collection:index' %}" class="btn btn-primary">Go to my collection</a>
+      {% else %}
+        <a href="{% url 'accounts:signup' %}" class="btn btn-primary">Get started</a>
+        <a href="{% url 'login' %}" class="btn btn-ghost">Sign in</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

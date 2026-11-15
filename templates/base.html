@@ -1,0 +1,48 @@
+{% load static tailwind_cli %}<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pokedex{% endblock %} · Pokedex</title>
+  {% tailwind_css %}
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+</head>
+<body class="min-h-screen bg-base-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  <nav class="navbar bg-base-100 shadow-sm px-4">
+    <div class="flex-1">
+      <a href="{% url 'home' %}" class="btn btn-ghost text-xl">Pokedex</a>
+    </div>
+    <div class="flex-none">
+      <ul class="menu menu-horizontal items-center gap-1">
+        {% if user.is_authenticated %}
+          <li><a href="{% url 'collection:index' %}">Collection</a></li>
+          <li><a href="{% url 'collection:wishlist' %}">Wishlist</a></li>
+          <li><a href="{% url 'accounts:account' %}">{{ user.username }}</a></li>
+          <li>
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-ghost">Sign out</button>
+            </form>
+          </li>
+        {% else %}
+          <li><a href="{% url 'login' %}">Sign in</a></li>
+          <li><a href="{% url 'accounts:signup' %}" class="btn btn-sm btn-primary">Sign up</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container mx-auto max-w-5xl p-4">
+    {% if messages %}
+      <div class="space-y-2 mb-4">
+        {% for message in messages %}
+          <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% else %}alert-info{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

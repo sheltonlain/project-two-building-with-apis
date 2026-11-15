@@ -41,13 +41,13 @@ Set up the `pokedex` project with its four apps, environment-driven settings, th
 
 ### Acceptance criteria
 
-- [ ] Settings read secret key, debug and allowed hosts from the environment; `.env` is git-ignored.
-- [ ] The custom User model is in place in the first migration; email is required and unique.
-- [ ] Sign-up shows clear errors for a duplicate username or email.
-- [ ] Sign-in, sign-out and post-login redirect work.
-- [ ] Anonymous requests to `/collection/`, `/wishlist/` and `/account/` redirect to the sign-in page.
-- [ ] Tailwind/DaisyUI styles and HTMX load on the base layout.
-- [ ] `pytest` and `ruff` run cleanly, and tests cover sign-up validation and the login-required redirects.
+- [x] Settings read secret key, debug and allowed hosts from the environment; `.env` is git-ignored.
+- [x] The custom User model is in place in the first migration; email is required and unique.
+- [x] Sign-up shows clear errors for a duplicate username or email.
+- [x] Sign-in, sign-out and post-login redirect work.
+- [x] Anonymous requests to `/collection/`, `/wishlist/` and `/account/` redirect to the sign-in page.
+- [x] Tailwind/DaisyUI styles and HTMX load on the base layout.
+- [x] `pytest` and `ruff` run cleanly, and tests cover sign-up validation and the login-required redirects.
 
 ---
 
