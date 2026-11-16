@@ -174,11 +174,11 @@ Add a search box (card name or notes, case-insensitive contains), plus set, rari
 
 ### Acceptance criteria
 
-- [ ] Search matches both card names and notes.
-- [ ] Filter dropdowns list only values from the user's own collection.
-- [ ] All sort keys work in both directions; null prices sort last for price and value.
-- [ ] Pages hold 24 entries, and moving between pages keeps the filters and sort.
-- [ ] Tests cover null-last ordering, value sorting and filter option scoping.
+- [x] Search matches both card names and notes.
+- [x] Filter dropdowns list only values from the user's own collection.
+- [x] All sort keys work in both directions; null prices sort last for price and value.
+- [x] Pages hold 24 entries, and moving between pages keeps the filters and sort.
+- [x] Tests cover null-last ordering, value sorting and filter option scoping.
 
 ---
 
@@ -208,6 +208,8 @@ Introduce the Wish model. From a search tile, a user can add a wish for the sele
 ### What to build
 
 Extend the services module's add and remove operations. After an add, the service fulfills at most one active wish: an exact-variant wish first, otherwise an "Any variant" wish for that card. It sets fulfilled-at and links the OwnedCard. A wish for a different variant stays open. The tile confirmation says when a wish was fulfilled and links to the wishlist. On the wishlist, fulfilled wishes appear crossed out with a "Got it" badge, the fulfilled date, and "Keep it on my wishlist" (reopens the wish, keeps the copy) and "OK" (deletes the wish) buttons. Active wishes get a "Got it" button that adds the wished variant, or the card's first variant for "Any variant", through the same logic. "−" on an OwnedCard restores the most recently fulfilled wish linked to it. The navigation shows a separate badge for fulfilled wishes awaiting dismissal.
+
+> **Open question (from phase 7):** the collection page's Undo puts back copies removed by "−" or Remove. Decide whether Undo should re-fulfill a wish that the "−" restored.
 
 ### Acceptance criteria
 

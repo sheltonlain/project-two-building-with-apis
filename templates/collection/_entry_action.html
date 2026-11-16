@@ -9,3 +9,13 @@
   </div>
 {% endif %}
 {% include "collection/_value_summary.html" with oob=True %}
+{% if resort_url %}
+  {# Entries stay put under the cursor; this link puts them back in sorted order. Pinned to the #}
+  {# bottom of the screen, so it shows however far down the page the entry is. #}
+  <div id="resort-prompt" hx-swap-oob="true" class="toast toast-center toast-bottom z-50">
+    <div role="status" class="alert alert-info py-2 text-sm shadow-lg">
+      <span>The sort order has changed.</span>
+      <a href="{{ resort_url }}" class="btn btn-sm">Re-sort</a>
+    </div>
+  </div>
+{% endif %}

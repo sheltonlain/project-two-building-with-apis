@@ -103,19 +103,53 @@ def remove_copy(owned):
     return owned
 
 
-def collection_entries(user):
+# Collection sort keys (prefix "-" for descending) and the field each one sorts on.
+COLLECTION_SORT_FIELDS = {
+    "name": "variant__card__name",
+    "price": "variant__market_price",
+    "value": "value",
+    "quantity": "quantity",
+    "added": "created",
+}
+DEFAULT_ORDERING = "-added"
+
+
+def collection_entries(
+    user, search="", set_id="", rarity="", variant="", ordering=DEFAULT_ORDERING
+):
     """The user's OwnedCard rows, newest first, each annotated with `value` (price × quantity,
-    None when the variant has no price)."""
+    None when the variant has no price).
+
+    `search` matches the card name or the notes, ignoring case; `set_id`, `rarity` and `variant`
+    are exact matches. `ordering` is a key of COLLECTION_SORT_FIELDS, "-" first for descending;
+    unknown keys fall back to newest first.
+    """
+    entries = OwnedCard.objects.filter(user=user)
+    if search:
+        entries = entries.filter(
+            Q(variant__card__name__icontains=search) | Q(notes__icontains=search)
+        )
+    if set_id:
+        entries = entries.filter(variant__card__set_id=set_id)
+    if rarity:
+        entries = entries.filter(variant__card__rarity=rarity)
+    if variant:
+        entries = entries.filter(variant__variant=variant)
+    sort_field = COLLECTION_SORT_FIELDS.get(ordering.removeprefix("-"))
+    if sort_field is None:
+        ordering, sort_field = DEFAULT_ORDERING, COLLECTION_SORT_FIELDS["added"]
+    # Unpriced entries go last in both directions; newest first breaks ties.
+    sort = F(sort_field)
+    sort = sort.desc(nulls_last=True) if ordering.startswith("-") else sort.asc(nulls_last=True)
     return (
-        OwnedCard.objects.filter(user=user)
-        .select_related("variant__card")
+        entries.select_related("variant__card")
         .annotate(
             value=ExpressionWrapper(
                 F("quantity") * F("variant__market_price"),
                 output_field=DecimalField(max_digits=14, decimal_places=2),
             )
         )
-        .order_by("-created", "-pk")
+        .order_by(sort, "-created", "-pk")
     )
 
 
@@ -171,3 +205,19 @@ def undo_removal(user, record):
             owned.save(update_fields=["quantity", "updated"])
         owned.refresh_from_db()
     return owned
+
+
+def collection_filter_options(user):
+    """The filter choices for the user's collection, drawn only from their own rows:
+    {"sets": [(set ID, set name)], "rarities": [rarity], "variants": [(code, label)]}."""
+    cards = Card.objects.filter(variants__owned__user=user).distinct()
+    sets = cards.order_by("set_name", "set_id").values_list("set_id", "set_name").distinct()
+    rarities = cards.exclude(rarity="").order_by("rarity").values_list("rarity", flat=True)
+    codes = set(
+        CardVariant.objects.filter(owned__user=user).values_list("variant", flat=True).distinct()
+    )
+    return {
+        "sets": list(sets),
+        "rarities": list(rarities.distinct()),
+        "variants": [(code, label) for code, label in CardVariant.Variant.choices if code in codes],
+    }

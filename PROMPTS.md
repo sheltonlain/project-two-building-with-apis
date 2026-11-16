@@ -28,6 +28,54 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 8: collection search, filter, sort and pagination
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 8`
+2. "yes, go ahead" (approved the three TDD behaviors: name/notes search, unpriced entries last
+   for price and value sorts, filter options from the user's own rows)
+3. "proceed" (approved behavior 1's test)
+4. "Yes" (move on to behavior 2)
+5. "Yes" (approved behavior 2's test)
+6. "Yes" (move on to behavior 3)
+7. "Make it pass" (approved behavior 3's test)
+8. "Yes, continue with the rest of the phase"
+9. "Can we seed the database with demo data and user credentials so that it is easier to test these features?"
+10. "Everything works. One question -- if card quantity is changed, can we reload the page immediately to update its place in the sort?"
+11. "Go with option 1, the Re-sort prompt"
+12. "This does work, but if you are further down on the page, you don't notice the banner. Is there a fix for this? Also quick side note, please store the demo credentials somewhere in our codebase so I can access them later"
+13. "It works now, verify the acceptance criteria"
+14. "Update CLAUDE.md with both. Add the session to PROMPTS.md. Then commit and push"
+
+### Summary
+- **Outcome:** The collection page got a name/notes search, set, rarity and variant dropdowns
+  drawn only from the user's own rows, and a sort dropdown (name, price, value, quantity, date
+  added, both directions, unpriced last for price and value). It pages at 24 entries with
+  numbered links that keep the query string, and it says "No entries match these filters"
+  rather than calling a filtered collection empty. The filtering and sorting live in
+  `services.collection_entries()` and `services.collection_filter_options()`, so the API can
+  reuse them in phase 14. Added a `seed_demo` command (users `demo` and `misty`, password
+  `pokedex-demo`, DEBUG only, no TCGdex calls), documented in the README. Added a Re-sort toast
+  that appears when "+", "−" or Undo moves an entry in a quantity or value sort. 146 tests pass;
+  all five acceptance criteria were ticked. Two lines were added to CLAUDE.md.
+- **Deviations:**
+  - The user asked for demo seed data, which wasn't part of the phase.
+  - The user asked for an immediate re-sort after quantity changes. Claude warned that live
+    reordering would move cards under the cursor and recommended a Re-sort prompt instead
+    (option 1 of 3); the user took the recommendation.
+  - The user found the prompt easy to miss when scrolled down, so it became a toast pinned to
+    the bottom of the screen.
+- **Sideways:**
+  - Behavior 2's first RED was too weak: two of the four sort cases passed by coincidence
+    because creation order matched the expected order. The setup was reordered so all four
+    failed on assertions before the fix.
+  - The first Re-sort test had a wrong expectation: tied quantities sort newest first, so the
+    newer card moved ahead on the first "+". The test's starting quantity was corrected.
+  - One seed test assertion (a stale user instance failing the password check) was wrong and
+    was removed before it ran.
+  - In the manual check steps, Claude's first instructions for the Re-sort banner were muddled
+    about when Psyduck would pass Magikarp.
+
 ## 2026-11-15 — Implemented Phase 7: collection page, stepper and collection value
 
 ### Prompts

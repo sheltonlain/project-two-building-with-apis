@@ -3,12 +3,82 @@
 {% block content %}
 <h1 class="text-3xl font-bold mb-4">My collection</h1>
 {% include "collection/_value_summary.html" %}
-{% if entries %}
-  <div class="grid gap-4 sm:grid-cols-2">
-    {% for entry in entries %}
-      {% include "collection/_entry.html" %}
-    {% endfor %}
-  </div>
+{% if has_entries %}
+  {# A plain GET form: the filters and sort live in the query string, so pages keep them. #}
+  <form method="get" action="{% url 'collection:index' %}" class="flex flex-wrap items-end gap-2 mb-4" role="search">
+    <label class="form-control grow">
+      <span class="label-text mb-1">Search names and notes</span>
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="e.g. pika or trade" class="input input-bordered w-full">
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Set</span>
+      <select name="set" class="select select-bordered">
+        <option value="">Any set</option>
+        {% for set_id, set_name in options.sets %}
+          <option value="{{ set_id }}"{% if set_id == filters.set %} selected{% endif %}>{{ set_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Rarity</span>
+      <select name="rarity" class="select select-bordered">
+        <option value="">Any rarity</option>
+        {% for rarity in options.rarities %}
+          <option value="{{ rarity }}"{% if rarity == filters.rarity %} selected{% endif %}>{{ rarity }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Variant</span>
+      <select name="variant" class="select select-bordered">
+        <option value="">Any variant</option>
+        {% for code, label in options.variants %}
+          <option value="{{ code }}"{% if code == filters.variant %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Sort by</span>
+      <select name="sort" class="select select-bordered">
+        {% for key, label in sorts %}
+          <option value="{{ key }}"{% if key == filters.sort %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary">Apply</button>
+    {% if filtered %}<a href="{% url 'collection:index' %}{% if filters.sort != '-added' %}?sort={{ filters.sort|urlencode }}{% endif %}" class="btn btn-ghost">Clear filters</a>{% endif %}
+  </form>
+
+  <p class="mb-4 font-semibold">
+    {{ page.paginator.count }} entr{{ page.paginator.count|pluralize:"y,ies" }}{% if filtered %} match{{ page.paginator.count|pluralize:"es," }}{% endif %}
+  </p>
+
+  {% if page.object_list %}
+    {# Filled out of band (as a toast) when "+", "−" or Undo moves an entry in a quantity or #}
+    {# value sort. #}
+    <div id="resort-prompt"></div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      {% for entry in page.object_list %}
+        {% include "collection/_entry.html" %}
+      {% endfor %}
+    </div>
+
+    {% if page.paginator.num_pages > 1 %}
+      <nav class="join mt-6 flex flex-wrap justify-center" aria-label="Collection pages">
+        {% for number in page_range %}
+          {% if number == page.paginator.ELLIPSIS %}
+            <span class="join-item btn btn-sm btn-disabled">…</span>
+          {% elif number == page.number %}
+            <span class="join-item btn btn-sm btn-active" aria-current="page">{{ number }}</span>
+          {% else %}
+            <a href="{% querystring page=number %}" class="join-item btn btn-sm">{{ number }}</a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+    {% endif %}
+  {% else %}
+    <p class="opacity-70">No entries match these filters. Try a shorter search or fewer filters.</p>
+  {% endif %}
 {% else %}
   <div class="alert">
     <span>Your collection is empty. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> and add the ones you own.</span>

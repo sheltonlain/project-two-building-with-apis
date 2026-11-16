@@ -1,4 +1,8 @@
+from urllib.parse import urlsplit
+
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
+from django.http import QueryDict
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import TemplateView
@@ -14,6 +18,42 @@ def is_htmx(request):
     )
 
 
+PAGE_SIZE = 24
+COLLECTION_FILTERS = ("q", "set", "rarity", "variant", "sort")
+# (ordering key for services.collection_entries, label), in the order the dropdown shows them.
+COLLECTION_SORTS = [
+    ("-added", "Newest first"),
+    ("added", "Oldest first"),
+    ("name", "Name, A–Z"),
+    ("-name", "Name, Z–A"),
+    ("-price", "Price, high to low"),
+    ("price", "Price, low to high"),
+    ("-value", "Value, high to low"),
+    ("value", "Value, low to high"),
+    ("-quantity", "Quantity, most first"),
+    ("quantity", "Quantity, fewest first"),
+]
+
+
+RESORT_KEYS = {"quantity", "value"}  # sorts that "+", "−" and Undo can change
+
+
+def collection_listing(user, query):
+    """The filters read from a collection page's query string, and the entries they select."""
+    filters = {key: query.get(key, "").strip() for key in COLLECTION_FILTERS}
+    if filters["sort"] not in dict(COLLECTION_SORTS):
+        filters["sort"] = services.DEFAULT_ORDERING
+    entries = services.collection_entries(
+        user,
+        search=filters["q"],
+        set_id=filters["set"],
+        rarity=filters["rarity"],
+        variant=filters["variant"],
+        ordering=filters["sort"],
+    )
+    return filters, entries
+
+
 class CollectionView(LoginRequiredMixin, TemplateView):
     """The user's collection, one entry per card variant, from local data only, so it works
     while TCGdex is down."""
@@ -22,9 +62,51 @@ class CollectionView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["entries"] = services.collection_entries(self.request.user)
-        context["value"] = services.collection_value(self.request.user)
+        user = self.request.user
+        filters, entries = collection_listing(user, self.request.GET)
+        page = Paginator(entries, PAGE_SIZE).get_page(self.request.GET.get("page"))
+        context["filters"] = filters
+        context["filtered"] = any(filters[key] for key in ("q", "set", "rarity", "variant"))
+        context["options"] = services.collection_filter_options(user)
+        context["sorts"] = COLLECTION_SORTS
+        context["page"] = page
+        context["page_range"] = page.paginator.get_elided_page_range(page.number)
+        context["has_entries"] = page.paginator.count > 0 or (
+            context["filtered"] and services.collection_entries(user).exists()
+        )
+        context["value"] = services.collection_value(user)
         return context
+
+
+class ResortWatch:
+    """Notices when an entry action moves the entry within the collection page's current sort.
+
+    Only quantity and value sorts can change, so other sorts are never checked. The page's URL
+    comes from HTMX's HX-Current-URL header; the re-sort link keeps only its path and query.
+    """
+
+    def __init__(self, request, pk):
+        self.pk = pk
+        self.entries = None
+        url = urlsplit(request.headers.get("HX-Current-URL", ""))
+        if url.path != reverse("collection:index"):
+            return
+        filters, entries = collection_listing(request.user, QueryDict(url.query))
+        if filters["sort"].removeprefix("-") in RESORT_KEYS:
+            self.entries = entries
+            self.url = f"{url.path}?{url.query}" if url.query else url.path
+            self.before = self.position()
+
+    def position(self):
+        pks = list(self.entries.values_list("pk", flat=True))
+        return pks.index(self.pk) if self.pk in pks else None
+
+    def moved_url(self):
+        """The page's URL if the entry is still listed but in a different place, else None."""
+        if self.entries is None or self.before is None:
+            return None
+        after = self.position()
+        return self.url if after is not None and after != self.before else None
 
 
 UNDO_SESSION_KEY = "collection_undo"
@@ -44,6 +126,7 @@ class EntryActionView(LoginRequiredMixin, TemplateView):
 
     def post(self, request, pk):
         owned = get_object_or_404(services.collection_entries(request.user), pk=pk)
+        self.watch = ResortWatch(request, pk)
         label = owned.variant.get_variant_display()
         context = {"pk": pk}
         before = services.removal_record(owned, owned.quantity)
@@ -74,6 +157,7 @@ class EntryActionView(LoginRequiredMixin, TemplateView):
         if "entry" not in context:
             context["entry"] = services.collection_entries(user).filter(pk=context["pk"]).first()
         context["value"] = services.collection_value(user)
+        context["resort_url"] = self.watch.moved_url()
         return self.render_to_response(context)
 
     def act(self, owned, label):
@@ -117,6 +201,7 @@ class EntryUndoView(EntryActionView):
 
     def post(self, request, pk):
         context = {"pk": pk}
+        self.watch = ResortWatch(request, pk)
         records = request.session.get(UNDO_SESSION_KEY, {})
         record = records.pop(str(pk), None)
         if record is None:

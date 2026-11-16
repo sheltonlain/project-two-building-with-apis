@@ -19,6 +19,16 @@ uv run python manage.py runserver
 During development, `uv run python manage.py tailwind runserver` rebuilds the CSS as templates
 change.
 
+### Demo data
+
+```sh
+uv run python manage.py seed_demo
+```
+
+This creates two users, `demo` (30 collection entries) and `misty` (3 entries), both with the
+password `pokedex-demo`. Re-running it resets their collections. It only runs with
+`DJANGO_DEBUG=true` and makes no TCGdex calls.
+
 ## Checks
 
 ```sh
