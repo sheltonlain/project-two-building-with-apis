@@ -1,0 +1,45 @@
+{% comment %}
+  One collection entry (an OwnedCard, annotated with `value`). Its buttons swap the whole entry
+  (outerHTML) with the response of collection/_entry_action.html.
+{% endcomment %}
+{% with card=entry.variant.card variant=entry.variant %}
+<article id="entry-{{ entry.pk }}" class="card card-side bg-base-100 shadow-sm"
+         hx-target="this" hx-swap="outerHTML">
+  <figure class="w-28 shrink-0 p-2 items-start">
+    {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+  </figure>
+  <div class="card-body p-3 gap-1 text-sm min-w-0">
+    <h2 class="card-title text-base">{{ card.name }}</h2>
+    <p class="opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}</p>
+    <p><span class="badge badge-outline badge-sm">{{ variant.get_variant_display }}</span></p>
+    <p>
+      {% if variant.market_price is not None %}
+        <span class="font-semibold">${{ variant.market_price }}</span> each
+        <span class="text-xs opacity-70">· as of {{ variant.price_updated|date:"M j, Y" }}</span><br>
+        Total Value: <span class="font-semibold">${{ entry.value|floatformat:"2g" }}</span>
+      {% else %}
+        <span class="opacity-70">No price</span>
+      {% endif %}
+    </p>
+    {% if entry.notes %}<p class="italic opacity-80 break-words">{{ entry.notes }}</p>{% endif %}
+    <div class="flex items-center gap-2 mt-1">
+      <div class="join">
+        <button type="button" class="btn btn-sm join-item" hx-post="{% url 'collection:entry_remove' entry.pk %}"
+                aria-label="Remove one {{ variant.get_variant_display }}">−</button>
+        <span class="join-item flex items-center px-3 border border-base-300 font-semibold">{{ entry.quantity }} owned</span>
+        <button type="button" class="btn btn-sm btn-primary join-item" hx-post="{% url 'collection:entry_add' entry.pk %}"
+                aria-label="Add one {{ variant.get_variant_display }}">+</button>
+      </div>
+      <button type="button" class="btn btn-sm btn-ghost text-error" hx-post="{% url 'collection:entry_delete' entry.pk %}"
+              hx-confirm="Remove {{ card.name }} ({{ variant.get_variant_display }}) from your collection?">Remove</button>
+    </div>
+    {% if notice %}
+      <p role="status" class="text-xs text-success">
+        {{ notice }}
+        {% if undo_url %}<button type="button" class="link ml-1" hx-post="{{ undo_url }}">Undo</button>{% endif %}
+      </p>
+    {% endif %}
+    {% if error %}<p role="alert" class="text-xs text-error">{{ error }}</p>{% endif %}
+  </div>
+</article>
+{% endwith %}

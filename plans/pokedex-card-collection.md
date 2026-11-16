@@ -154,13 +154,13 @@ The `/collection/` page lists one entry per OwnedCard: image, name, set, rarity,
 
 ### Acceptance criteria
 
-- [ ] The page renders correctly with the TCGdex client forced unavailable.
-- [ ] The default order is date added, newest first.
-- [ ] Stepper and remove work from the collection page.
-- [ ] The total value is computed in the database and excludes unpriced entries, and "N cards have no price" shows when relevant.
-- [ ] Each price shows its "as of" date; missing prices show "No price".
-- [ ] Requests for another user's entry return 404.
-- [ ] Tests cover the value aggregate with no-price entries, offline rendering and 404 ownership.
+- [x] The page renders correctly with the TCGdex client forced unavailable.
+- [x] The default order is date added, newest first.
+- [x] Stepper and remove work from the collection page.
+- [x] The total value is computed in the database and excludes unpriced entries, and "N cards have no price" shows when relevant.
+- [x] Each price shows its "as of" date; missing prices show "No price".
+- [x] Requests for another user's entry return 404.
+- [x] Tests cover the value aggregate with no-price entries, offline rendering and 404 ownership.
 
 ---
 

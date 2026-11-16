@@ -1,0 +1,14 @@
+{% comment %}
+  The collection's total value. Entry actions swap it out of band (pass oob=True) so the total
+  follows every "+", "−" and Remove.
+{% endcomment %}
+<div id="collection-value" class="stats shadow mb-4 bg-base-100"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="stat">
+    <div class="stat-title">Collection value</div>
+    <div class="stat-value">${{ value.total|floatformat:"2g" }}</div>
+    <div class="stat-desc">
+      TCGplayer market prices, USD{% if value.as_of %} · as of {{ value.as_of|date:"M j, Y" }}{% endif %}
+      {% if value.unpriced %}<br><span class="text-warning">{{ value.unpriced }} card{{ value.unpriced|pluralize:" has,s have" }} no price</span>{% endif %}
+    </div>
+  </div>
+</div>

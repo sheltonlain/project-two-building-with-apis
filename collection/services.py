@@ -1,7 +1,9 @@
 """The app's business rules. Website views and the API both call these, so they always agree."""
 
+from decimal import Decimal
+
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Min, Q, Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -9,6 +11,8 @@ from catalog import tcgdex
 from catalog.models import Card, CardVariant
 
 from .models import OwnedCard
+
+CENTS = Decimal("0.01")
 
 
 class UnsupportedVariant(ValueError):
@@ -95,5 +99,75 @@ def remove_copy(owned):
             return None
         owned.quantity = F("quantity") - 1
         owned.save(update_fields=["quantity", "updated"])
+        owned.refresh_from_db()
+    return owned
+
+
+def collection_entries(user):
+    """The user's OwnedCard rows, newest first, each annotated with `value` (price × quantity,
+    None when the variant has no price)."""
+    return (
+        OwnedCard.objects.filter(user=user)
+        .select_related("variant__card")
+        .annotate(
+            value=ExpressionWrapper(
+                F("quantity") * F("variant__market_price"),
+                output_field=DecimalField(max_digits=14, decimal_places=2),
+            )
+        )
+        .order_by("-created", "-pk")
+    )
+
+
+def delete_entry(owned):
+    """Remove every copy of an entry. The shared Card and CardVariant rows are kept."""
+    owned.delete()
+
+
+def collection_value(user):
+    """The user's collection value, computed in the database.
+
+    Returns {"total": price × quantity summed over priced entries, "unpriced": how many entries
+    have no price, "as_of": the oldest price-updated time among priced entries (None if none)}.
+    """
+    priced = Q(variant__market_price__isnull=False)
+    value = OwnedCard.objects.filter(user=user).aggregate(
+        total=Sum(
+            F("quantity") * F("variant__market_price"),
+            filter=priced,
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        ),
+        unpriced=Count("pk", filter=~priced),
+        as_of=Min("variant__price_updated", filter=priced),
+    )
+    value["total"] = (value["total"] or Decimal("0")).quantize(CENTS)
+    return value
+
+
+def removal_record(owned, removed):
+    """What undo_removal() needs to put back `removed` copies of an entry, as JSON-safe data
+    (it is kept in the session)."""
+    return {
+        "variant": owned.variant_id,
+        "removed": removed,
+        "notes": owned.notes,
+        "created": owned.created.isoformat(),
+    }
+
+
+def undo_removal(user, record):
+    """Put back the copies described by removal_record(). If the entry was deleted, it comes back
+    with its notes and original date added, so it returns to its old place in the collection."""
+    with transaction.atomic():
+        owned, created = OwnedCard.objects.get_or_create(
+            user=user,
+            variant_id=record["variant"],
+            defaults={"quantity": record["removed"], "notes": record["notes"]},
+        )
+        if created:
+            OwnedCard.objects.filter(pk=owned.pk).update(created=parse_datetime(record["created"]))
+        else:
+            owned.quantity = F("quantity") + record["removed"]
+            owned.save(update_fields=["quantity", "updated"])
         owned.refresh_from_db()
     return owned

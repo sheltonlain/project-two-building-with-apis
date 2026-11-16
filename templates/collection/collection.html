@@ -2,5 +2,16 @@
 {% block title %}My collection{% endblock %}
 {% block content %}
 <h1 class="text-3xl font-bold mb-4">My collection</h1>
-<p class="opacity-70">Your collection is empty for now. Card search arrives in a later phase.</p>
+{% include "collection/_value_summary.html" %}
+{% if entries %}
+  <div class="grid gap-4 sm:grid-cols-2">
+    {% for entry in entries %}
+      {% include "collection/_entry.html" %}
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert">
+    <span>Your collection is empty. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> and add the ones you own.</span>
+  </div>
+{% endif %}
 {% endblock %}

@@ -24,6 +24,8 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - Settings are deploy-ready: secret key, debug and allowed hosts come from environment variables, loaded locally from a git-ignored `.env`.
 - Tests never call the real TCGdex API.
 - User-facing error messages describe what happened and what to try next, without assuming whose fault it is.
+- On SQLite, calculated decimals (annotations, aggregates) come back unrounded; round them to cents in the service or format them in the template.
+- Collection Undo records (last 20 removals) are kept in the session, not the database.
 - HTMX views return a fragment for HTMX requests but a full page for history-restore requests, and swapped fragments include any form inputs whose values should survive the Back button.
 
 ## References

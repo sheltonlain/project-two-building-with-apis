@@ -6,7 +6,8 @@
   (the search page does when a tile's details load after a retry); if it then loads, it replaces
   the placeholder.
 {% endcomment %}
-<div class="card-image relative w-full aspect-[63/88]">
+{# h-auto keeps the card's shape where a parent stretches children (DaisyUI card-side figures). #}
+<div class="card-image relative w-full h-auto aspect-[63/88]">
   {% if src %}
     <img src="{{ src }}" alt="{{ name }}" loading="lazy"
          class="w-full h-full object-contain rounded"

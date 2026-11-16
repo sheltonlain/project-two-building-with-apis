@@ -28,6 +28,54 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 7: collection page, stepper and collection value
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 7`
+2. "Yes" (approved the three TDD behaviors: value aggregate, 404 for others' entries, offline page)
+3. "Yes" (approved behavior 1's test: the value total skips unpriced entries and counts them)
+4. "Yes" (move on to behavior 2)
+5. "Yes" (approved behavior 2's test: actions on another user's entry return 404)
+6. "Continue" (move on to behavior 3)
+7. "Since this did not truly run as red, is there another TDD test we could run?"
+8. "Yes, go ahead with your suggestion"
+9. "Yes, it behaves as expected, except the value on each card is listed as a float with a lot of decimal places instead of formatted as currency. I also want this to read "Value of cards owned:" instead of just value. Additionally, when a card is removed from your collection with the "-" or remove button, I want there to be an "undo" option that appears."
+10. "Actually, can we make it read "Total Value:". Also, I want the placeholder card to be the same size as the other cards on this page."
+    - Clarifying question answered: the placeholder meant was the **missing-image box**, not the "Removed…" box.
+11. "Yes, it looks great"
+12. "Add both, then update PROMPTS.md"
+
+### Summary
+- **Outcome:** Built the `/collection/` page from local data only: one entry per OwnedCard,
+  newest first, with image, name, set, rarity, variant, price with its "as of" date or
+  "No price", per-entry "Total Value:" and notes. Each entry has a "− N owned +" stepper, a
+  Remove button and, after "−" or Remove, an Undo that puts the copies back (a deleted entry
+  returns with its notes and original date). A summary shows the collection value (database
+  aggregate, rounded to cents), "N cards have no price" and the oldest "as of" date, and it
+  updates out of band after every action. Every entry action is scoped to the user (404 for
+  others). Added `collection_entries`, `collection_value`, `delete_entry`, `removal_record`
+  and `undo_removal` to the services module. 131 tests pass. Two lines were added to CLAUDE.md:
+  unrounded SQLite decimals, and Undo records kept in the session.
+- **Deviations:**
+  - The user asked whether another TDD test could get a true RED for behavior 3. Claude said no,
+    since the whole phase was already built, and recommended keeping it as a regression test
+    plus adding normal stepper/Remove tests; the user accepted.
+  - After manual verification the user asked for currency formatting, a "Value of cards owned:"
+    label (then changed to "Total Value:"), an Undo option that the PRD had dropped in favour of
+    the stepper, and a same-size missing-image placeholder. Claude asked which placeholder was
+    meant.
+- **Sideways:**
+  - Behavior 3 (offline page) never ran red: the page was fully built while making behavior 2
+    pass. It was checked by temporarily restoring the old placeholder template, which failed
+    with a ValueError rather than an assertion.
+  - The new stepper tests caught a crash: `{{ notice|default:error }}` raised when `error` was
+    missing, so deleting the last copy or pressing Remove failed. Fixed before manual testing.
+  - Per-entry values showed as long floats because SQLite returns calculated decimals unrounded;
+    the earlier tests had only checked the total.
+  - The missing-image box was taller than real images because DaisyUI's `card-side` sets
+    `height: 100%` on figure children, overriding the 63:88 aspect ratio. Fixed with `h-auto`.
+  - Open question for phase 10: whether Undo should re-fulfill a wish that "−" restored.
+
 ## 2026-11-15 — Implemented Phase 6: add to collection and the stepper
 
 ### Prompts

@@ -1,0 +1,11 @@
+{# The response to an entry action: the updated entry, or a short notice where a deleted one was. #}
+{% if entry %}
+  {% include "collection/_entry.html" %}
+{% else %}
+  <div id="entry-{{ pk }}" role="status" class="alert {% if error %}alert-warning{% else %}alert-success{% endif %} text-sm"
+       hx-target="this" hx-swap="outerHTML">
+    <span>{{ notice }}{{ error }}</span>
+    {% if undo_url %}<button type="button" class="btn btn-sm" hx-post="{{ undo_url }}">Undo</button>{% endif %}
+  </div>
+{% endif %}
+{% include "collection/_value_summary.html" with oob=True %}
