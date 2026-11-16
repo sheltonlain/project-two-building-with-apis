@@ -8,6 +8,7 @@ from django.views.generic import TemplateView
 
 from collection import services
 from collection.models import OwnedCard
+from collection.views import add_notice, remove_notice
 
 from . import tcgdex
 from .models import Card
@@ -175,7 +176,10 @@ class TileAddView(TileActionView):
             context["retry_url"] = reverse("catalog:tile_details", args=[card_id])
             context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(0, RETRY_SPREAD)
         else:
-            context["notice"] = f"Added 1 {owned.variant.get_variant_display()}."
+            label = owned.variant.get_variant_display()
+            context["notice"] = add_notice(label, owned)
+            context["wish_fulfilled"] = owned.fulfilled_wish is not None
+            context["update_nav"] = context["wish_fulfilled"]
 
 
 class TileRemoveView(TileActionView):
@@ -191,10 +195,9 @@ class TileRemoveView(TileActionView):
         if owned is None:
             return  # nothing of this variant to remove (e.g. already removed in another tab)
         label = owned.variant.get_variant_display()
-        if services.remove_copy(owned) is None:
-            context["notice"] = f"Removed your last {label} copy."
-        else:
-            context["notice"] = f"Removed 1 {label}."
+        deleted = services.remove_copy(owned) is None
+        context["notice"] = remove_notice(label, owned, deleted)
+        context["update_nav"] = owned.restored_wish is not None
 
 
 class TileWishView(TileActionView):

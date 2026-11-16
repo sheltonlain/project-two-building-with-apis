@@ -209,17 +209,15 @@ Introduce the Wish model. From a search tile, a user can add a wish for the sele
 
 Extend the services module's add and remove operations. After an add, the service fulfills the user's active wish for that exact variant, if there is one. It sets fulfilled-at and links the OwnedCard. A wish for a different variant stays open. The tile confirmation says when a wish was fulfilled and links to the wishlist. On the wishlist, fulfilled wishes appear crossed out with a "Got it" badge, the fulfilled date, and "Keep it on my wishlist" (reopens the wish, keeps the copy) and "OK" (deletes the wish) buttons. Active wishes get a "Got it" button that adds the wished variant through the same logic. "−" on an OwnedCard restores the most recently fulfilled wish linked to it. The navigation shows a separate badge for fulfilled wishes awaiting dismissal.
 
-> **Open question (from phase 7):** the collection page's Undo puts back copies removed by "−" or Remove. Decide whether Undo should re-fulfill a wish that the "−" restored.
-
 ### Acceptance criteria
 
-- [ ] Adding a copy fulfills the active wish for that exact variant, and only one wish per copy added.
-- [ ] Adding a different variant leaves a specific-variant wish active.
-- [ ] The tile notice links to the wishlist when a wish was fulfilled.
-- [ ] Keep, OK and Got it behave as described.
-- [ ] "−" restores the most recently fulfilled wish linked to that OwnedCard.
-- [ ] The nav badge counts fulfilled-but-not-dismissed wishes.
-- [ ] Tests cover exact-variant matching, wrong-variant non-fulfillment, restore on "−", Keep and OK.
+- [x] Adding a copy fulfills the active wish for that exact variant, and only one wish per copy added.
+- [x] Adding a different variant leaves a specific-variant wish active.
+- [x] The tile notice links to the wishlist when a wish was fulfilled.
+- [x] Keep, OK and Got it behave as described.
+- [x] "−" restores the most recently fulfilled wish linked to that OwnedCard.
+- [x] The nav badge counts fulfilled-but-not-dismissed wishes.
+- [x] Tests cover exact-variant matching, wrong-variant non-fulfillment, restore on "−", Keep and OK.
 
 ---
 

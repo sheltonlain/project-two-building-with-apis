@@ -2,16 +2,5 @@
 {% block title %}My wishlist{% endblock %}
 {% block content %}
 <h1 class="text-3xl font-bold mb-4">My wishlist</h1>
-{% if wishes %}
-  <p class="mb-4 font-semibold">{{ wishes|length }} wish{{ wishes|length|pluralize:"es" }}</p>
-  <div class="grid gap-4 sm:grid-cols-2">
-    {% for wish in wishes %}
-      {% include "collection/_wish.html" %}
-    {% endfor %}
-  </div>
-{% else %}
-  <div class="alert">
-    <span>Your wishlist is empty. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> and add the ones you want.</span>
-  </div>
-{% endif %}
+{% include "collection/_wishlist_body.html" %}
 {% endblock %}

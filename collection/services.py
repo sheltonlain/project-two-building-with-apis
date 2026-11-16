@@ -69,7 +69,11 @@ def _parse_time(value):
 
 
 def add_copy(user, card_id, variant, probe=False):
-    """Add one copy of a card variant to the user's collection and return their OwnedCard."""
+    """Add one copy of a card variant to the user's collection and return their OwnedCard.
+
+    If the user has an active wish for that variant, it is fulfilled and linked to the OwnedCard;
+    the returned OwnedCard's `fulfilled_wish` is that wish, or None.
+    """
     card = get_or_create_card(card_id, probe=probe)
     card_variant = card.variants.filter(variant=variant).first()
     if card_variant is None:
@@ -80,7 +84,20 @@ def add_copy(user, card_id, variant, probe=False):
             owned.quantity = F("quantity") + 1
             owned.save(update_fields=["quantity", "updated"])
             owned.refresh_from_db()
+        owned.fulfilled_wish = _fulfill_wish(owned)
     return owned
+
+
+def _fulfill_wish(owned):
+    """Fulfill the user's active wish for the OwnedCard's variant, if any, and return it."""
+    wish = Wish.objects.filter(
+        user=owned.user_id, variant=owned.variant_id, fulfilled_at__isnull=True
+    ).first()
+    if wish is not None:
+        wish.fulfilled_at = timezone.now()
+        wish.fulfilled_by = owned
+        wish.save(update_fields=["fulfilled_at", "fulfilled_by"])
+    return wish
 
 
 def add_wish(user, card_id, variant, probe=False):
@@ -99,6 +116,16 @@ def active_wishes(user):
         Wish.objects.filter(user=user, fulfilled_at__isnull=True)
         .select_related("variant__card")
         .order_by("-created", "-pk")
+    )
+
+
+def fulfilled_wishes(user):
+    """The user's fulfilled wishes that haven't been dismissed yet, most recently fulfilled
+    first."""
+    return (
+        Wish.objects.filter(user=user, fulfilled_at__isnull=False)
+        .select_related("variant__card")
+        .order_by("-fulfilled_at", "-pk")
     )
 
 
@@ -139,11 +166,33 @@ def owned_quantities(user, card_id):
     return dict(rows.values_list("variant__variant", "quantity"))
 
 
+def restore_wish(owned):
+    """Make the wish most recently fulfilled by this OwnedCard active again and return it.
+
+    If the user already has an active wish for that variant, the fulfilled one is deleted
+    instead (there is only one active wish per variant) and None is returned. Returns None when
+    no wish is linked to the entry.
+    """
+    wish = owned.fulfilled_wishes.order_by("-fulfilled_at", "-pk").first()
+    if wish is None:
+        return None
+    fulfilled_at = wish.fulfilled_at
+    wish = keep_wish(wish)
+    if wish is not None:
+        wish.fulfilled_at_before = fulfilled_at  # for removal_record(), so Undo can put it back
+    return wish
+
+
 def remove_copy(owned):
     """Remove one copy. Returns the updated OwnedCard, or None if that was the last copy and the
-    entry was deleted. The shared Card and CardVariant rows are always kept."""
+    entry was deleted. The shared Card and CardVariant rows are always kept.
+
+    The most recently fulfilled wish linked to the entry is restored (see restore_wish()); the
+    passed-in OwnedCard's `restored_wish` is that wish, or None.
+    """
     with transaction.atomic():
         owned.refresh_from_db()
+        owned.restored_wish = restore_wish(owned)
         if owned.quantity <= 1:
             owned.delete()
             return None
@@ -228,15 +277,22 @@ def collection_value(user):
     return value
 
 
-def removal_record(owned, removed):
+def removal_record(owned, removed, restored_wish=None):
     """What undo_removal() needs to put back `removed` copies of an entry, as JSON-safe data
-    (it is kept in the session)."""
-    return {
+    (it is kept in the session). `restored_wish` is the wish the removal made active again, if
+    any; Undo fulfills it again."""
+    record = {
         "variant": owned.variant_id,
         "removed": removed,
         "notes": owned.notes,
         "created": owned.created.isoformat(),
     }
+    if restored_wish is not None:
+        record["wish"] = {
+            "pk": restored_wish.pk,
+            "fulfilled_at": restored_wish.fulfilled_at_before.isoformat(),
+        }
+    return record
 
 
 def undo_removal(user, record):
@@ -254,6 +310,12 @@ def undo_removal(user, record):
             owned.quantity = F("quantity") + record["removed"]
             owned.save(update_fields=["quantity", "updated"])
         owned.refresh_from_db()
+        if wish := record.get("wish"):
+            # Fulfill the wish the removal restored again, unless the user has since dealt with
+            # it (removed it, or it was fulfilled by something else).
+            Wish.objects.filter(pk=wish["pk"], user=user, fulfilled_at__isnull=True).update(
+                fulfilled_at=parse_datetime(wish["fulfilled_at"]), fulfilled_by=owned
+            )
     return owned
 
 
@@ -271,3 +333,27 @@ def collection_filter_options(user):
         "rarities": list(rarities.distinct()),
         "variants": [(code, label) for code, label in CardVariant.Variant.choices if code in codes],
     }
+
+
+def keep_wish(wish):
+    """Keep wishing for a fulfilled wish's variant: make it active again and return it. The copy
+    that fulfilled it stays.
+
+    If the user has an active wish for that variant already, that one is kept and the fulfilled
+    wish is deleted (there is only one active wish per variant); None is returned.
+    """
+    with transaction.atomic():
+        if Wish.objects.filter(
+            user=wish.user_id, variant=wish.variant_id, fulfilled_at__isnull=True
+        ).exists():
+            wish.delete()
+            return None
+        wish.fulfilled_at = None
+        wish.fulfilled_by = None
+        wish.save(update_fields=["fulfilled_at", "fulfilled_by"])
+    return wish
+
+
+def dismiss_wish(wish):
+    """OK: delete a fulfilled wish once the user has seen it. The copy stays."""
+    wish.delete()

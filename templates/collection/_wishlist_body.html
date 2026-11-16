@@ -1,0 +1,43 @@
+{% comment %}
+  The wishlist's lists: fulfilled wishes waiting to be dismissed, then active wishes. Got it, Keep
+  and OK swap this whole body so the wish shows up in its new place. `notice` and `error` are
+  shown on the wish whose pk is `notice_pk`, or above the lists when that wish is gone (OK).
+{% endcomment %}
+<div id="wishlist-body">
+{% if notice and not notice_pk %}
+  <div role="status" class="alert alert-success text-sm mb-4"><span>{{ notice }}</span></div>
+{% endif %}
+{% if fulfilled %}
+  <section aria-labelledby="fulfilled-heading" class="mb-6">
+    <h2 id="fulfilled-heading" class="text-xl font-semibold mb-1">Got it</h2>
+    <p class="mb-3 text-sm opacity-70">You added these to your collection. Keep wishing for one, or press OK to clear it.</p>
+    <div class="grid gap-4 sm:grid-cols-2">
+      {% for wish in fulfilled %}
+        {% if wish.pk == notice_pk %}
+          {% include "collection/_wish.html" %}
+        {% else %}
+          {% include "collection/_wish.html" with notice="" error="" %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% if wishes %}
+  <p class="mb-4 font-semibold">{{ wishes|length }} wish{{ wishes|length|pluralize:"es" }}</p>
+  <div class="grid gap-4 sm:grid-cols-2">
+    {% for wish in wishes %}
+      {% if wish.pk == notice_pk %}
+        {% include "collection/_wish.html" %}
+      {% else %}
+        {% include "collection/_wish.html" with notice="" error="" %}
+      {% endif %}
+    {% endfor %}
+  </div>
+{% elif not fulfilled %}
+  <div class="alert">
+    <span>Your wishlist is empty. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> and add the ones you want.</span>
+  </div>
+{% else %}
+  <p class="opacity-70">No active wishes. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> to wish for more.</p>
+{% endif %}
+</div>

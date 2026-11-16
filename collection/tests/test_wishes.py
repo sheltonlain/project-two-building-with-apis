@@ -132,9 +132,7 @@ def test_wishing_while_tcgdex_is_down_for_an_unstored_card_says_so_and_saves_not
 
 
 @responses.activate  # no URLs registered: any TCGdex request would fail the test
-def test_the_wishlist_lists_only_my_active_wishes_newest_first_while_tcgdex_is_down(
-    ash_client, ash
-):
+def test_the_wishlist_lists_only_my_wishes_newest_first_while_tcgdex_is_down(ash_client, ash):
     cache.set(tcgdex.OUTAGE_KEY, timezone.now().timestamp() + 60, 60)
     make_wish(ash, "sv03.5-001", "Bulbasaur", "reverse", price="0.45", notes="for my binder")
     make_wish(ash, "sv03.5-004", "Charmander")
@@ -149,7 +147,8 @@ def test_the_wishlist_lists_only_my_active_wishes_newest_first_while_tcgdex_is_d
     assert html.index("Charmander") < html.index("Bulbasaur")  # newest first
     assert "Normal" in html and "Reverse holo" in html
     assert "$0.45" in html and "for my binder" in html
-    assert "Squirtle" not in html  # fulfilled wishes come in phase 10
+    # The fulfilled wish is listed apart, above the active ones.
+    assert html.index("Got it</h2>") < html.index("Squirtle") < html.index("Charmander")
     assert "Starmie" not in html
 
 

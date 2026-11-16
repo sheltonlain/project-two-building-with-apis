@@ -1,15 +1,20 @@
 {% comment %}
-  One active wish. Its buttons swap the whole wish (outerHTML) with the response of
-  collection/_wish_action.html.
+  One wish. Active: Got it and Remove. Fulfilled (not yet dismissed): crossed out, with a Got it
+  badge, the date fulfilled, and Keep it on my wishlist and OK. Remove swaps just this wish
+  (outerHTML) with collection/_wish_action.html; Got it, Keep and OK move the wish between the
+  lists, so they swap the whole wishlist body with collection/_wishlist_action.html.
 {% endcomment %}
-{% with card=wish.variant.card variant=wish.variant %}
-<article id="wish-{{ wish.pk }}" class="card card-side bg-base-100 shadow-sm"
+{% with card=wish.variant.card variant=wish.variant fulfilled=wish.fulfilled_at %}
+<article id="wish-{{ wish.pk }}" class="card card-side shadow-sm {% if fulfilled %}bg-base-100/60 border border-success/40{% else %}bg-base-100{% endif %}"
          hx-target="this" hx-swap="outerHTML">
-  <figure class="w-28 shrink-0 p-2 items-start">
+  <figure class="w-28 shrink-0 p-2 items-start{% if fulfilled %} opacity-60{% endif %}">
     {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
   </figure>
   <div class="card-body p-3 gap-1 text-sm min-w-0">
-    <h2 class="card-title text-base">{{ card.name }}</h2>
+    <h2 class="card-title text-base">
+      <span{% if fulfilled %} class="line-through opacity-70"{% endif %}>{{ card.name }}</span>
+      {% if fulfilled %}<span class="badge badge-success badge-sm">Got it</span>{% endif %}
+    </h2>
     <p class="opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}</p>
     <p><span class="badge badge-outline badge-sm">{{ variant.get_variant_display }}</span></p>
     <p>
@@ -21,12 +26,26 @@
       {% endif %}
     </p>
     {% if wish.notes %}<p class="italic opacity-80 break-words">{{ wish.notes }}</p>{% endif %}
-    <p class="text-xs opacity-70">Added {{ wish.created|date:"M j, Y" }}</p>
-    <div class="mt-1">
-      <button type="button" class="btn btn-sm btn-ghost text-error" hx-post="{% url 'collection:wish_remove' wish.pk %}"
-              hx-confirm="Remove {{ card.name }} ({{ variant.get_variant_display }}) from your wishlist?">Remove</button>
+    <p class="text-xs opacity-70">
+      Added {{ wish.created|date:"M j, Y" }}{% if fulfilled %} · Fulfilled {{ fulfilled|date:"M j, Y" }}{% endif %}
+    </p>
+    <div class="mt-1 flex flex-wrap gap-2">
+      {% if fulfilled %}
+        <button type="button" class="btn btn-sm btn-outline" hx-post="{% url 'collection:wish_keep' wish.pk %}"
+                hx-target="#wishlist-body" hx-swap="outerHTML show:#wish-{{ wish.pk }}:top">Keep it on my wishlist</button>
+        <button type="button" class="btn btn-sm btn-success" hx-post="{% url 'collection:wish_dismiss' wish.pk %}"
+                hx-target="#wishlist-body" hx-swap="outerHTML show:#wishlist-body:top"
+                aria-label="OK, dismiss {{ card.name }} ({{ variant.get_variant_display }})">OK</button>
+      {% else %}
+        <button type="button" class="btn btn-sm btn-primary" hx-post="{% url 'collection:wish_got_it' wish.pk %}"
+                hx-target="#wishlist-body" hx-swap="outerHTML show:#wish-{{ wish.pk }}:top"
+                aria-label="Got it: add {{ card.name }} ({{ variant.get_variant_display }}) to your collection">Got it</button>
+        <button type="button" class="btn btn-sm btn-ghost text-error" hx-post="{% url 'collection:wish_remove' wish.pk %}"
+                hx-confirm="Remove {{ card.name }} ({{ variant.get_variant_display }}) from your wishlist?">Remove</button>
+      {% endif %}
     </div>
     {% if notice %}<p role="status" class="text-xs text-success">{{ notice }}</p>{% endif %}
+    {% if error %}<p role="alert" class="text-xs text-error">{{ error }}</p>{% endif %}
   </div>
 </article>
 {% endwith %}

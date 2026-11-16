@@ -1,3 +1,7 @@
-{# The nav's active-wish count. Responses that change it include this with oob=True. #}
+{# The nav's wish badges: active wishes, and fulfilled wishes waiting to be dismissed. #}
+{# Responses that change them include this with oob=True. #}
 <span id="nav-wish-count" class="badge badge-sm badge-secondary{% if not active_wish_count %} hidden{% endif %}"
       aria-label="{{ active_wish_count }} active wish{{ active_wish_count|pluralize:'es' }}"{% if oob %} hx-swap-oob="true"{% endif %}>{{ active_wish_count }}</span>
+<span id="nav-fulfilled-count" class="badge badge-sm badge-success{% if not fulfilled_wish_count %} hidden{% endif %}"
+      title="Wishes you got, waiting for you to review"
+      aria-label="{{ fulfilled_wish_count }} fulfilled wish{{ fulfilled_wish_count|pluralize:'es' }} to review"{% if oob %} hx-swap-oob="true"{% endif %}>✓ {{ fulfilled_wish_count }}</span>

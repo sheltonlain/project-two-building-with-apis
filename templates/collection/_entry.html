@@ -35,7 +35,7 @@
     </div>
     {% if notice %}
       <p role="status" class="text-xs text-success">
-        {{ notice }}
+        {{ notice }}{% if wish_fulfilled %} <a href="{% url 'collection:wishlist' %}" class="link">View on wishlist</a>{% endif %}
         {% if undo_url %}<button type="button" class="link ml-1" hx-post="{{ undo_url }}">Undo</button>{% endif %}
       </p>
     {% endif %}

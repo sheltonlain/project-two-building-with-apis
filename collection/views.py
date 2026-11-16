@@ -129,9 +129,9 @@ class EntryActionView(LoginRequiredMixin, TemplateView):
         self.watch = ResortWatch(request, pk)
         label = owned.variant.get_variant_display()
         context = {"pk": pk}
-        before = services.removal_record(owned, owned.quantity)
+        before = owned.quantity
         try:
-            context["notice"] = self.act(owned, label)
+            context["notice"] = self.act(owned, label, context)
         except tcgdex.TCGdexError:
             # Only possible if the stored card vanished; the stored card normally makes this local.
             context["error"] = "We couldn't update this card. Reload the page and try again."
@@ -142,12 +142,15 @@ class EntryActionView(LoginRequiredMixin, TemplateView):
         return self.respond(context)
 
     def remember_removal(self, pk, before, owned):
-        """Keep what was removed in the session, so Undo can put it back."""
+        """Keep what was removed (and any wish it restored) in the session, so Undo can put it
+        back."""
         after = owned.quantity if owned.pk else 0
-        before["removed"] -= after
+        record = services.removal_record(
+            owned, before - after, getattr(owned, "restored_wish", None)
+        )
         records = self.request.session.get(UNDO_SESSION_KEY, {})
         records.pop(str(pk), None)
-        records[str(pk)] = before
+        records[str(pk)] = record
         self.request.session[UNDO_SESSION_KEY] = dict(list(records.items())[-UNDO_KEEP:])
 
     def respond(self, context):
@@ -160,27 +163,44 @@ class EntryActionView(LoginRequiredMixin, TemplateView):
         context["resort_url"] = self.watch.moved_url()
         return self.render_to_response(context)
 
-    def act(self, owned, label):
+    def act(self, owned, label, context):
+        """Do the action and return the notice to show. May add to `context`."""
         raise NotImplementedError
+
+
+def add_notice(label, owned):
+    """The notice after adding a copy, saying so when it fulfilled a wish."""
+    if owned.fulfilled_wish is not None:
+        return f"Added 1 {label}. That fulfilled a wish."
+    return f"Added 1 {label}."
+
+
+def remove_notice(label, owned, deleted):
+    """The notice after "−", saying so when a wish came back."""
+    notice = f"Removed your last {label} copy." if deleted else f"Removed 1 {label}."
+    if owned.restored_wish is not None:
+        notice += " Its wish is back on your wishlist."
+    return notice
 
 
 class EntryAddView(EntryActionView):
     """The stepper's "+": one more copy of this entry's variant."""
 
-    def act(self, owned, label):
-        services.add_copy(owned.user, owned.variant.card.tcgdex_id, owned.variant.variant)
-        return f"Added 1 {label}."
+    def act(self, owned, label, context):
+        owned = services.add_copy(owned.user, owned.variant.card.tcgdex_id, owned.variant.variant)
+        context["wish_fulfilled"] = owned.fulfilled_wish is not None
+        return add_notice(label, owned)
 
 
 class EntryRemoveView(EntryActionView):
-    """The stepper's "−": one copy fewer; the entry is deleted when none are left."""
+    """The stepper's "−": one copy fewer; the entry is deleted when none are left. Restores the
+    wish this entry most recently fulfilled."""
 
     removes = True
 
-    def act(self, owned, label):
-        if services.remove_copy(owned) is None:
-            return f"Removed your last {label} copy."
-        return f"Removed 1 {label}."
+    def act(self, owned, label, context):
+        deleted = services.remove_copy(owned) is None
+        return remove_notice(label, owned, deleted)
 
 
 class EntryDeleteView(EntryActionView):
@@ -188,7 +208,7 @@ class EntryDeleteView(EntryActionView):
 
     removes = True
 
-    def act(self, owned, label):
+    def act(self, owned, label, context):
         services.delete_entry(owned)
         return f"Removed {owned.variant.card.name} ({label}) from your collection."
 
@@ -216,13 +236,14 @@ class EntryUndoView(EntryActionView):
 
 
 class WishlistView(LoginRequiredMixin, TemplateView):
-    """The user's active wishes, newest first, from local data only, so it works while TCGdex is
-    down."""
+    """The user's fulfilled wishes waiting to be dismissed, then their active wishes, newest
+    first. Local data only, so it works while TCGdex is down."""
 
     template_name = "collection/wishlist.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["fulfilled"] = services.fulfilled_wishes(self.request.user)
         context["wishes"] = services.active_wishes(self.request.user)
         return context
 
@@ -280,3 +301,69 @@ class WishUndoView(WishActionView):
         request.session[WISH_UNDO_SESSION_KEY] = records
         wish = services.undo_wish_removal(request.user, record)
         return self.respond({"pk": pk, "wish": wish, "notice": "Put it back on your wishlist."})
+
+
+class WishMoveView(WishActionView):
+    """Base for the wish actions that move a wish between the Got it section and the active list
+    (Got it, Keep, OK). HTMX requests get the whole wishlist body back, so the wish shows up in
+    its new place.
+
+    `act` returns (wish to show the notice on, or None for a notice above the lists, notice,
+    error).
+    """
+
+    template_name = "collection/_wishlist_action.html"
+
+    def post(self, request, pk):
+        notice_pk, notice, error = self.act(request.user, pk)
+        return self.respond(
+            {
+                "fulfilled": services.fulfilled_wishes(request.user),
+                "wishes": services.active_wishes(request.user),
+                "notice_pk": notice_pk,
+                "notice": notice,
+                "error": error,
+            }
+        )
+
+    def act(self, user, pk):
+        raise NotImplementedError
+
+
+class WishGotItView(WishMoveView):
+    """Got it: add a copy of an active wish's variant to the collection. That goes through the
+    usual add, so it fulfills this wish, which moves to the Got it section."""
+
+    def act(self, user, pk):
+        wish = get_object_or_404(services.active_wishes(user), pk=pk)
+        variant = wish.variant
+        try:
+            services.add_copy(user, variant.card.tcgdex_id, variant.variant)
+        except tcgdex.TCGdexError:
+            # Only possible if the stored card vanished; the stored card normally makes this local.
+            return pk, "", "We couldn't add this card. Reload the page and try again."
+        return pk, f"Added 1 {variant.get_variant_display()} to your collection.", ""
+
+
+class WishKeepView(WishMoveView):
+    """Keep it on my wishlist: a fulfilled wish moves back into the active list; the copy
+    stays."""
+
+    def act(self, user, pk):
+        wish = get_object_or_404(services.fulfilled_wishes(user), pk=pk)
+        kept = services.keep_wish(wish)
+        if kept is None:
+            # The user had wished for this variant again; that newer wish is the one that stays.
+            kept = services.active_wishes(user).get(variant=wish.variant)
+            return kept.pk, "You were already wishing for this again, so this wish stays.", ""
+        return kept.pk, "Kept on your wishlist.", ""
+
+
+class WishDismissView(WishMoveView):
+    """OK: delete a fulfilled wish once the user has seen it; the copy stays."""
+
+    def act(self, user, pk):
+        wish = get_object_or_404(services.fulfilled_wishes(user), pk=pk)
+        services.dismiss_wish(wish)
+        label = wish.variant.get_variant_display()
+        return None, f"Dismissed {wish.variant.card.name} ({label}).", ""

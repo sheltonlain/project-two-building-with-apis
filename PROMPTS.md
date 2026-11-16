@@ -28,6 +28,47 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented Phase 10: wish fulfillment
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 10`
+2. "Yes" (approved the three TDD behaviors and the two decisions: Undo re-fulfills a wish that
+   "−" restored, and a restore never makes a second active wish)
+3. "Yes" (approved behavior 1's test)
+4. "Yes" (move on to behavior 2)
+5. "Yes" (approved behavior 2's test)
+6. "Yes" (move on to behavior 3)
+7. "Yes" (approved behavior 3's test)
+8. "Yes" (build the rest of the phase)
+9. "When I click view on wishlist, the wishlist partially opens up on the card I just added and
+   stays on the search cards screen. refreshing the page pulls up the wishlist, though. How do we
+   fix this?"
+10. "When I press the button to keep the card on my wishlist, the card stays under the got it
+    section and still shows the message instructing the user to keep wishing or press got it. If I
+    select keep it on my wishlist, the card should just go back in the list"
+11. "yes, make Got it and OK reload the lists too"
+12. "everything works, check the acceptance criteria"
+13. "Remove the note. Update CLAUDE.md with your suggestions"
+14. "yes, update PROMPTS.md then commit and push"
+
+### Summary
+- **Outcome:** `add_copy` fulfills the active wish for the exact variant and links it to the
+  OwnedCard; "−" restores the most recently fulfilled wish (also on the last copy); Keep reopens a
+  fulfilled wish, OK deletes it, Got it adds a copy through the same logic. Collection Undo
+  fulfills a restored wish again. The wishlist shows a crossed-out Got it section, the nav has a
+  fulfilled-wish badge, and tile and collection notices link to the wishlist. Three behaviors were
+  built test-first (exact-variant fulfillment, restore on "−", Keep/OK); 169 tests pass.
+- **Deviations:** none from the recommendations. The user asked for Got it, Keep and OK to move
+  the wish between sections live instead of re-rendering it in place, and the open-question note
+  in the plan was removed once Undo was decided.
+- **Sideways:** "View on wishlist" swapped the wishlist page into the tile because the search
+  page's boosted wrapper captured the link (the Phase 9 "On your wishlist" badge had the same
+  bug); fixed with `hx-boost="false"` on the tile. Keep first left the wish under Got it, which
+  the user caught in manual testing. Behavior 3's first run failed with an AttributeError, not an
+  assertion, so stubs were added to get a real RED. A Phase 9 test that asserted fulfilled wishes
+  were hidden was updated for the new behavior. A shell heredoc failed on quoting, so edit scripts
+  were moved to the scratchpad.
+
 ## 2026-11-15 — Implemented Phase 9: wishlist basics (and dropped "Any variant" wishes)
 
 ### Prompts

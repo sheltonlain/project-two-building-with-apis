@@ -13,4 +13,7 @@ urlpatterns = [
     path("wishlist/", views.WishlistView.as_view(), name="wishlist"),
     path("wishlist/<int:pk>/remove/", views.WishRemoveView.as_view(), name="wish_remove"),
     path("wishlist/<int:pk>/undo/", views.WishUndoView.as_view(), name="wish_undo"),
+    path("wishlist/<int:pk>/got-it/", views.WishGotItView.as_view(), name="wish_got_it"),
+    path("wishlist/<int:pk>/keep/", views.WishKeepView.as_view(), name="wish_keep"),
+    path("wishlist/<int:pk>/dismiss/", views.WishDismissView.as_view(), name="wish_dismiss"),
 ]

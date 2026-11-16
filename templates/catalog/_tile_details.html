@@ -2,6 +2,7 @@
   The lower half of a search tile, swapped in place (outerHTML) by its own HTMX requests.
   hx-target and hx-indicator are set here because the search page's boosted wrapper would
   otherwise make tile requests replace the whole results panel and show the search spinner.
+  hx-boost="false" makes links here (to the wishlist) ordinary page loads, not swaps into the tile.
 
   A failed tile retries itself after `retry_delay` seconds, when the circuit breaker closes, or on a
   `retry` event. "Try now" is a user retry: it checks TCGdex even while the breaker is open, and if
@@ -9,7 +10,7 @@
   tiles marked data-tile-failed, and its "Retry all now" presses the first tile's "Try now".
 {% endcomment %}
 {% url 'catalog:tile_details' card_id as details_url %}
-<div class="tile-details text-sm" hx-target="this" hx-swap="outerHTML" hx-indicator="this"
+<div class="tile-details text-sm" hx-target="this" hx-swap="outerHTML" hx-indicator="this" hx-boost="false"
      {% if unavailable %}data-tile-failed hx-get="{{ retry_url }}" hx-trigger="load delay:{{ retry_delay }}s, retry"{% endif %}>
   {% if card %}
     <p class="opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}</p>
@@ -50,7 +51,7 @@
     {% if wish_summary %}
       <p class="mt-1"><a href="{% url 'collection:wishlist' %}" class="badge badge-secondary badge-sm h-auto py-0.5">On your wishlist: {{ wish_summary }}</a></p>
     {% endif %}
-    {% if notice %}<p role="status" class="text-xs text-success mt-1">{{ notice }}</p>{% endif %}
+    {% if notice %}<p role="status" class="text-xs text-success mt-1">{{ notice }}{% if wish_fulfilled %} <a href="{% url 'collection:wishlist' %}" class="link">View on wishlist</a>{% endif %}</p>{% endif %}
     {% if error %}<p role="alert" class="text-xs text-error mt-1">{{ error }}</p>{% endif %}
   {% elif unavailable %}
     {% if error %}<p role="alert" class="text-xs text-error mt-1">{{ error }}</p>{% endif %}
