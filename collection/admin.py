@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import OwnedCard
+from .models import OwnedCard, Wish
 
 
 @admin.register(OwnedCard)
@@ -13,3 +13,10 @@ class OwnedCardAdmin(admin.ModelAdmin):
     def price(self, owned):
         price = owned.variant.market_price
         return f"${price}" if price is not None else "No price"
+
+
+@admin.register(Wish)
+class WishAdmin(admin.ModelAdmin):
+    list_display = ["user", "variant", "created", "fulfilled_at"]
+    list_select_related = ["user", "variant__card"]
+    raw_id_fields = ["variant", "fulfilled_by"]

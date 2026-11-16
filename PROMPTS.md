@@ -28,6 +28,57 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 9: wishlist basics (and dropped "Any variant" wishes)
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 9`
+2. "yes, approved" (approved the three TDD behaviors, including the one-active-wish-per-variant
+   rule)
+3. "Yes" (approved behavior 1's test)
+4. "yes, go ahead" (move on to behavior 2)
+5. "Since this never ran a real red, is there another TDD test we can run instead?"
+6. "yes, swap it in" (replaced behavior 2 with the nav's active wish count)
+7. "yes, go ahead" (approved the nav count test)
+8. "yes, go ahead" (move on to behavior 3)
+9. "yes, go ahead" (approved behavior 3's test)
+10. "yes, go ahead" (build the rest of the phase)
+11. "the seed did not work"
+12. "all passes. One note - the wish for any variant button is awkward and the words are cut off.
+    What other style choices do we have?"
+13. (Rejected the multiple-choice question to clarify first.)
+14. `/prototype prototype the ui for these options`
+15. "I like C, but I honestly don't like the wish for any variant feature. I say we make it so that
+    the user has to choose their variant just like for the collection."
+16. "yes, go ahead with all of it"
+17. "Everything works. One note - when you remove a wish from your list, there should be an undo
+    button"
+18. "Yes, it works"
+19. "Update CLAUDE.md with these"
+20. "Yes" (write this log, then commit and push)
+
+### Summary
+- **Outcome:** Wish model (one CardVariant per wish, one active wish per user and variant enforced
+  in the database), wish services, a full-width "♡ Add to wishlist" button and "On your wishlist"
+  badge on search tiles, a `/wishlist/` page that works offline with Remove and Undo, an active
+  wish count in the nav that updates out of band, and demo wishes in `seed_demo`. All six phase 9
+  criteria ticked; 158 tests pass. Prototype `prototypes/tile-wish-buttons.html` records the
+  button decision.
+- **Deviations:** The user asked for a replacement TDD behavior when the duplicate-wish test passed
+  on its first run; the nav wish count took its place and the duplicate test stayed as a regular
+  test. The user chose option C of four button layouts but without its "any variant" link, and
+  then dropped "Any variant" wishes altogether: PRD stories 33 and 38 were marked removed, stories
+  54 and 90 and the related decisions were updated, and phases 9, 10, 11 and 14 of the plan were
+  reworded. Approved TDD test 1's assertions changed with that scope change. The user also asked
+  for Undo on wish removal, which follows the collection's session-based Undo.
+- **Sideways:** The duplicate-wish test never went red, because behavior 1's `get_or_create`
+  already covered it (shown by temporarily breaking the code). `seed_demo` failed with "no such
+  table: collection_wish" because the new migration was never applied to the dev database; the
+  tests use their own database, so they missed it. The seed message also said "1 wishes". The
+  multiple-choice question about button layouts was rejected so the user could clarify. A long
+  inline edit script failed to parse in the shell and was rerun from a scratch file. Two
+  assertions failed on HTML-escaped apostrophes. A full test run passed the 2-minute shell limit
+  and finished in the background.
+
 ## 2026-11-15 — Implemented Phase 8: collection search, filter, sort and pagination
 
 ### Prompts

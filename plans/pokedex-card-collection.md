@@ -18,7 +18,7 @@ Durable decisions that apply across all phases:
   - **Card**: one row per TCGdex card, shared by all users; unique TCGdex card ID (e.g. `sv03.5-025`), name, set ID/name, series, rarity, local number, base image URL. Created only when a user saves a card; never deleted when unreferenced.
   - **CardVariant**: FK Card; variant is one of Normal, Reverse holo, Holo, 1st Edition, W Promo; unique on (card, variant); nullable Decimal USD market price; price-updated timestamp. A card's CardVariant rows are its allowed variants.
   - **OwnedCard**: FK User, FK CardVariant; positive quantity; notes (≤ 500 chars); created/updated timestamps; unique on (user, variant); deleted at quantity 0.
-  - **Wish**: FK User, FK Card; nullable FK CardVariant (null = "Any variant"); notes (≤ 500 chars); created timestamp; nullable fulfilled-at; nullable FK to the OwnedCard that fulfilled it.
+  - **Wish**: FK User, FK CardVariant; one active wish per (user, variant); notes (≤ 500 chars); created timestamp; nullable fulfilled-at; nullable FK to the OwnedCard that fulfilled it.
 - **URLs** (app-namespaced, named):
   - `/accounts/signup/`, `/accounts/login/`, `/accounts/logout/`, `/accounts/password_change/`
   - `/account/` (profile, API token)
@@ -184,42 +184,42 @@ Add a search box (card name or notes, case-insensitive contains), plus set, rari
 
 ## Phase 9: Wishlist basics
 
-**User stories**: 20, 32, 33, 34, 35
+**User stories**: 20, 32, 34, 35
 
 ### What to build
 
-Introduce the Wish model. From a search tile, a user can add a wish for the selected variant or for "Any variant", including for cards they already own. Saving a wish creates Card and CardVariant rows if needed. A basic `/wishlist/` page lists active wishes with a remove action. Search tiles show a badge when the card is wished for, naming the wished variant or "Any variant". The navigation shows the count of active wishes.
+Introduce the Wish model. From a search tile, a user can add a wish for the selected variant, including for cards they already own. Saving a wish creates Card and CardVariant rows if needed. A basic `/wishlist/` page lists active wishes with a remove action. Search tiles show a badge when the card is wished for, naming the wished variants. The navigation shows the count of active wishes.
 
 ### Acceptance criteria
 
-- [ ] Wishes can be created with a specific variant or as "Any variant", whether or not the card is owned.
-- [ ] Removing a wish deletes it.
-- [ ] Tile badges reflect the user's wishes and the variant wished for.
-- [ ] The nav shows the active wish count.
-- [ ] The wishlist works offline and is scoped to the owner (404 for others).
-- [ ] Tests cover wish creation rules and owner scoping.
+- [x] Wishes can be created for a specific variant, whether or not the card is owned.
+- [x] Removing a wish deletes it.
+- [x] Tile badges reflect the user's wishes and the variant wished for.
+- [x] The nav shows the active wish count.
+- [x] The wishlist works offline and is scoped to the owner (404 for others).
+- [x] Tests cover wish creation rules and owner scoping.
 
 ---
 
 ## Phase 10: Wish fulfillment
 
-**User stories**: 36, 37, 38, 39, 40, 41, 42, 43, 44, 45
+**User stories**: 36, 37, 39, 40, 41, 42, 43, 44, 45
 
 ### What to build
 
-Extend the services module's add and remove operations. After an add, the service fulfills at most one active wish: an exact-variant wish first, otherwise an "Any variant" wish for that card. It sets fulfilled-at and links the OwnedCard. A wish for a different variant stays open. The tile confirmation says when a wish was fulfilled and links to the wishlist. On the wishlist, fulfilled wishes appear crossed out with a "Got it" badge, the fulfilled date, and "Keep it on my wishlist" (reopens the wish, keeps the copy) and "OK" (deletes the wish) buttons. Active wishes get a "Got it" button that adds the wished variant, or the card's first variant for "Any variant", through the same logic. "−" on an OwnedCard restores the most recently fulfilled wish linked to it. The navigation shows a separate badge for fulfilled wishes awaiting dismissal.
+Extend the services module's add and remove operations. After an add, the service fulfills the user's active wish for that exact variant, if there is one. It sets fulfilled-at and links the OwnedCard. A wish for a different variant stays open. The tile confirmation says when a wish was fulfilled and links to the wishlist. On the wishlist, fulfilled wishes appear crossed out with a "Got it" badge, the fulfilled date, and "Keep it on my wishlist" (reopens the wish, keeps the copy) and "OK" (deletes the wish) buttons. Active wishes get a "Got it" button that adds the wished variant through the same logic. "−" on an OwnedCard restores the most recently fulfilled wish linked to it. The navigation shows a separate badge for fulfilled wishes awaiting dismissal.
 
 > **Open question (from phase 7):** the collection page's Undo puts back copies removed by "−" or Remove. Decide whether Undo should re-fulfill a wish that the "−" restored.
 
 ### Acceptance criteria
 
-- [ ] An exact-variant wish is fulfilled before an "Any variant" wish, and only one wish is fulfilled per copy added.
+- [ ] Adding a copy fulfills the active wish for that exact variant, and only one wish per copy added.
 - [ ] Adding a different variant leaves a specific-variant wish active.
 - [ ] The tile notice links to the wishlist when a wish was fulfilled.
 - [ ] Keep, OK and Got it behave as described.
 - [ ] "−" restores the most recently fulfilled wish linked to that OwnedCard.
 - [ ] The nav badge counts fulfilled-but-not-dismissed wishes.
-- [ ] Tests cover matching priority, wrong-variant non-fulfillment, restore on "−", Keep and OK.
+- [ ] Tests cover exact-variant matching, wrong-variant non-fulfillment, restore on "−", Keep and OK.
 
 ---
 
@@ -229,14 +229,14 @@ Extend the services module's add and remove operations. After an add, the servic
 
 ### What to build
 
-Give the wishlist page the same controls as the collection: a name/notes search, set, rarity and variant filters drawn from the user's own wishes (the variant filter includes "Any variant"), sorting by name, date added, and price where a specific variant is wished for, and 24-per-page numbered pagination that keeps the query string.
+Give the wishlist page the same controls as the collection: a name/notes search, set, rarity and variant filters drawn from the user's own wishes, sorting by name, date added and price, and 24-per-page numbered pagination that keeps the query string.
 
 ### Acceptance criteria
 
-- [ ] The "Any variant" filter value selects wishes with no variant.
-- [ ] Price sort puts wishes without a priced variant last.
+- [ ] The variant filter lists only variants the user has wished for.
+- [ ] Price sort puts wishes for unpriced variants last.
 - [ ] Filters and sort are kept across pages.
-- [ ] Tests cover the "Any variant" filter and option scoping.
+- [ ] Tests cover the variant filter and option scoping.
 
 ---
 
@@ -285,7 +285,7 @@ Add DRF with Token and Session authentication. The Account page shows the user's
 
 - **Collection create** takes a TCGdex card ID, a variant, a quantity (default 1) and optional notes, and goes through the services module (fetch if new, validate the variant, fulfill wishes). The response includes nested card details, the variant, quantity, price, price-updated time, notes and the fulfilled wish or null.
 - **Collection partial update** may change quantity and notes only; quantity 0 deletes the entry.
-- **Wishlist create** takes a TCGdex card ID, an optional variant (empty = "Any variant") and optional notes.
+- **Wishlist create** takes a TCGdex card ID, a variant and optional notes.
 - **Wishlist partial update** may change notes only.
 
 Errors: 400 with field errors for an unknown card ID, an unsupported variant, a note that is too long or an invalid quantity; 503 with a provider-unavailable message when TCGdex is down and the card isn't stored locally; 404 for other users' IDs; unauthenticated requests are rejected.
@@ -297,7 +297,7 @@ Errors: 400 with field errors for an unknown card ID, an unsupported variant, a 
 - [ ] Both list endpoints paginate and support the website's filter and ordering options.
 - [ ] Collection create fulfills matching wishes and returns the documented response shape.
 - [ ] Quantity 0 through PATCH deletes the entry; changing the variant is not allowed.
-- [ ] Wishlist create supports "Any variant"; wishlist PATCH changes notes only.
+- [ ] Wishlist create requires a valid variant; wishlist PATCH changes notes only.
 - [ ] Unknown card or unsupported variant returns 400; TCGdex down for an unstored card returns 503.
 - [ ] Other users' entries return 404; unauthenticated requests are rejected.
 - [ ] Tests cover token authentication, 503 on create, quantity-zero deletion, variant validation and owner-only 404 on both endpoints.

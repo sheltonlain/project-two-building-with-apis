@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tile Wish Buttons</title>
+<!-- THROWAWAY PROTOTYPE. Not production code. Phase 9: how a search tile offers "wish for this
+     variant" and "wish for any variant" without the two side-by-side buttons getting cut off.
+     DECISION (2026-11-15): option C's full-width "♡ Add to wishlist" button for the selected variant,
+     without the "or wish for any variant" link: "Any variant" wishes were dropped from the PRD, so every
+     wish names a variant just as collection entries do. Once the selected variant is wished for, the
+     button gives way to the "On your wishlist" badge. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0/daisyui.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.0.0"></script>
+<style>
+  /* Prototype chrome: deliberately NOT DaisyUI so it stays separate from the design being judged */
+  .proto { position: fixed; z-index: 9999; background: #111; color: #eee; font: 12px/1.4 ui-monospace, Consolas, monospace;
+           border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+  .proto button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; cursor: pointer; font: inherit; }
+  .proto button.on { background: #f0c419; color: #111; border-color: #f0c419; }
+  .proto .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .proto .lbl { color: #999; }
+  .proto .desc { color: #bbb; max-width: 440px; }
+  #proto-switcher { left: 12px; bottom: 12px; display: grid; gap: 6px; max-width: calc(100vw - 24px); }
+  #proto-state { right: 12px; bottom: 12px; width: min(330px, calc(100vw - 24px)); max-height: 45vh; overflow: auto; }
+  #proto-state td { padding: 1px 4px; border-bottom: 1px solid #333; vertical-align: top; }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+
+<nav class="navbar bg-base-100 shadow-sm px-4">
+  <div class="flex-1"><a class="btn btn-ghost text-xl">Pokedex</a></div>
+  <ul class="menu menu-horizontal items-center gap-1">
+    <li><a>Search</a></li><li><a>Collection</a></li>
+    <li><a>Wishlist <span id="nav-count" class="badge badge-sm badge-secondary"></span></a></li>
+    <li><a>ash</a></li><li><button class="btn btn-sm btn-ghost">Sign out</button></li>
+  </ul>
+</nav>
+
+<main class="container mx-auto max-w-5xl p-4 pb-64">
+  <h1 class="text-3xl font-bold mb-4">Search cards</h1>
+  <p class="mb-4 font-semibold">5 cards found</p>
+  <ul id="grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></ul>
+</main>
+
+<div id="proto-switcher" class="proto">
+  <div class="row">
+    <span class="lbl">Option</span>
+    <button id="prev" title="Previous (←)">◀</button>
+    <b id="vname"></b>
+    <button id="next" title="Next (→)">▶</button>
+  </div>
+  <div class="desc" id="vdesc"></div>
+  <div class="row"><span class="lbl">Width</span>
+    <button data-w="">Page width</button><button data-w="390px">Phone (2 columns)</button>
+  </div>
+  <div class="row"><button id="reset">Reset wishes</button></div>
+</div>
+
+<div id="proto-state" class="proto"></div>
+
+<script>
+const IMG = "https://assets.tcgdex.net/en";
+// [id, name, set · rarity, image path, [[code, label, price]], owned {code: n}]
+const CARDS = [
+  ["sv03.5-025", "Pikachu", "151 · Common", "sv/sv03.5/025", [["normal", "Normal", "0.28"], ["reverse", "Reverse holo", "0.70"]], { normal: 2 }],
+  ["sv03.5-001", "Bulbasaur", "151 · Common", "sv/sv03.5/001", [["normal", "Normal", "0.12"], ["reverse", "Reverse holo", "0.45"]], {}],
+  ["base1-46", "Charmander", "Base Set · Common", "base/base1/46", [["normal", "Normal", "4.75"], ["first_edition", "1st Edition", "32.00"]], {}],
+  ["sv03.5-006", "Charizard ex", "151 · Double rare", "sv/sv03.5/006", [["holo", "Holo", "12.75"]], {}],
+  ["swshp-SWSH020", "Pikachu", "SWSH Black Star Promos · None", "swsh/swshp/SWSH020", [["normal", "Normal", null], ["holo", "Holo", "1.10"], ["w_promo", "W Promo", null]], {}],
+];
+
+const VARIANTS = [
+  ["A", "One button + menu", "A single full-width \"Add to wishlist ▾\" button opens a small menu: the selected variant, or Any variant. Wished options show a tick and can't be picked again. One-variant cards get a plain button."],
+  ["B", "Stacked full-width", "The two buttons from today, each on its own full-width row. Readable, but every tile is one row taller."],
+  ["C", "Button + text link", "A full-width \"♡ Add to wishlist\" button for the selected variant, with a quiet \"or any variant\" link under it."],
+  ["D", "Join group", "One joined control like the stepper: a wide \"♡ Wishlist\" for the selected variant and a narrow \"Any\" segment (with a tooltip)."],
+];
+
+let v = Number(localStorage.getItem("wish-proto-v") || 0);
+let wishes = {};     // card id -> Set of codes ("" = Any variant)
+let selected = {};   // card id -> selected code
+let notices = {};    // card id -> last notice
+let lastAction = "—";
+
+function wishSet(id) { return wishes[id] || (wishes[id] = new Set()); }
+
+function wish(id, code) {
+  const card = CARDS.find((c) => c[0] === id);
+  const label = code ? card[4].find((x) => x[0] === code)[1] : "Any variant";
+  const set = wishSet(id);
+  notices[id] = set.has(code) ? `${label} is already on your wishlist.` : `Added ${label} to your wishlist.`;
+  set.add(code);
+  lastAction = `wish ${id} ${label}`;
+  render();
+}
+
+function badge(card) {
+  const set = wishSet(card[0]);
+  const labels = card[4].filter((x) => set.has(x[0])).map((x) => x[1]);
+  if (set.has("")) labels.push("Any variant");
+  return labels.length ? `<p class="mt-1"><a class="badge badge-secondary badge-sm h-auto py-0.5">On your wishlist: ${labels.join(", ")}</a></p>` : "";
+}
+
+const heart = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5 shrink-0"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>`;
+
+// Each variant returns the wish control's HTML for one tile.
+const CONTROLS = [
+  // A: one button + menu
+  (card, sel, single, canSel, canAny) => {
+    if (single) return canSel ? `<button class="btn btn-outline btn-sm w-full mt-1" onclick="wish('${card[0]}','${sel[0]}')">${heart} Add to wishlist</button>` : "";
+    if (!canSel && !canAny) return "";
+    const item = (code, label, can) => can
+      ? `<li><button onclick="wish('${card[0]}','${code}')">${label}</button></li>`
+      : `<li class="menu-disabled"><span>✓ ${label}</span></li>`;
+    return `<details class="dropdown dropdown-end w-full mt-1">
+        <summary class="btn btn-outline btn-sm w-full">${heart} Add to wishlist ▾</summary>
+        <ul class="menu dropdown-content bg-base-100 rounded-box z-10 w-full p-1 shadow-sm text-sm">
+          ${item(sel[0], sel[1], canSel)}${item("", "Any variant", canAny)}
+        </ul></details>`;
+  },
+  // B: stacked full-width
+  (card, sel, single, canSel, canAny) => {
+    let html = "";
+    if (canSel) html += `<button class="btn btn-outline btn-xs w-full mt-1" onclick="wish('${card[0]}','${sel[0]}')">${single ? "Add to wishlist" : "Wish for " + sel[1]}</button>`;
+    if (canAny && !single) html += `<button class="btn btn-outline btn-xs w-full mt-1" onclick="wish('${card[0]}','')">Wish for any variant</button>`;
+    return html;
+  },
+  // C: button + text link
+  (card, sel, single, canSel, canAny) => {
+    let html = "";
+    if (canSel) html += `<button class="btn btn-outline btn-sm w-full mt-1" onclick="wish('${card[0]}','${sel[0]}')">${heart} Add to wishlist</button>`;
+    if (canAny && !single) html += `<p class="text-xs mt-1 text-center"><button class="link link-hover opacity-80" onclick="wish('${card[0]}','')">${canSel ? "or wish for any variant" : "Wish for any variant"}</button></p>`;
+    return html;
+  },
+  // D: join group
+  (card, sel, single, canSel, canAny) => {
+    if (single) return canSel ? `<button class="btn btn-outline btn-sm w-full mt-1" onclick="wish('${card[0]}','${sel[0]}')">${heart} Wishlist</button>` : "";
+    if (!canSel && !canAny) return "";
+    const main = canSel
+      ? `<button class="btn btn-outline btn-sm join-item flex-1" onclick="wish('${card[0]}','${sel[0]}')" title="Wish for ${sel[1]}">${heart} Wishlist</button>`
+      : `<button class="btn btn-outline btn-sm join-item flex-1" disabled>✓ ${sel[1]}</button>`;
+    const any = canAny
+      ? `<button class="btn btn-outline btn-sm join-item tooltip" data-tip="Wish for any variant" onclick="wish('${card[0]}','')">Any</button>`
+      : `<button class="btn btn-outline btn-sm join-item" disabled>✓ Any</button>`;
+    return `<div class="join w-full mt-1">${main}${any}</div>`;
+  },
+];
+
+function tile(card) {
+  const [id, name, meta, img, variants, owned] = card;
+  const sel = variants.find((x) => x[0] === selected[id]) || variants[0];
+  const single = variants.length === 1;
+  const set = wishSet(id);
+  const canSel = !set.has(sel[0]);
+  const canAny = !single && !set.has("");
+  const count = owned[sel[0]] || 0;
+  const summary = variants.filter((x) => owned[x[0]]).map((x) => `${owned[x[0]]} ${x[1]}`).join(", ");
+  const options = variants.map((x) => `<option value="${x[0]}"${x[0] === sel[0] ? " selected" : ""}>${x[1]}</option>`).join("");
+  const stepper = count
+    ? `<div class="join w-full mt-2"><button class="btn btn-sm join-item">−</button>
+       <span class="join-item flex-1 flex items-center justify-center border border-base-300 text-sm font-semibold">${count} owned</span>
+       <button class="btn btn-sm btn-primary join-item">+</button></div>`
+    : `<button class="btn btn-primary btn-sm w-full mt-2">Add to collection</button>`;
+  return `<li class="card bg-base-100 shadow-sm">
+    <figure class="px-3 pt-3"><img src="${IMG}/${img}/low.webp" alt="${name}" class="w-full aspect-[63/88] object-contain rounded bg-base-200"></figure>
+    <div class="card-body p-3">
+      <h2 class="font-semibold leading-tight">${name}</h2>
+      <div class="text-sm">
+        <p class="opacity-70">${meta}</p>
+        <select class="select select-bordered select-sm w-full mt-1" ${single ? "disabled" : `onchange="selected['${id}']=this.value; notices['${id}']=''; render()"`}>${options}</select>
+        <p class="mt-1 font-semibold">${sel[2] ? "$" + sel[2] : '<span class="opacity-70">No price</span>'}</p>
+        ${stepper}
+        ${summary ? `<p class="text-xs opacity-70 mt-1">You own: ${summary}</p>` : ""}
+        ${CONTROLS[v](card, sel, single, canSel, canAny)}
+        ${badge(card)}
+        ${notices[id] ? `<p role="status" class="text-xs text-success mt-1">${notices[id]}</p>` : ""}
+      </div>
+    </div></li>`;
+}
+
+function render() {
+  document.getElementById("grid").innerHTML = CARDS.map(tile).join("");
+  document.getElementById("vname").textContent = `${VARIANTS[v][0]} · ${VARIANTS[v][1]}`;
+  document.getElementById("vdesc").textContent = VARIANTS[v][2];
+  const total = Object.values(wishes).reduce((n, s) => n + s.size, 0);
+  const nav = document.getElementById("nav-count");
+  nav.textContent = total; nav.hidden = !total;
+  const rows = CARDS.map((c) => {
+    const set = wishSet(c[0]);
+    const list = [...set].map((code) => code ? c[4].find((x) => x[0] === code)[1] : "Any").join(", ") || "—";
+    return `<tr><td>${c[0]}</td><td>${list}</td></tr>`;
+  }).join("");
+  document.getElementById("proto-state").innerHTML =
+    `<b>State</b> · variant ${VARIANTS[v][0]} · nav count ${total}<br><span class="lbl">last:</span> ${lastAction}<table>${rows}</table>`;
+}
+
+function go(step) { v = (v + step + VARIANTS.length) % VARIANTS.length; localStorage.setItem("wish-proto-v", v); render(); }
+document.getElementById("prev").onclick = () => go(-1);
+document.getElementById("next").onclick = () => go(1);
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, select, textarea")) return;
+  if (e.key === "ArrowLeft") go(-1);
+  if (e.key === "ArrowRight") go(1);
+});
+document.querySelectorAll("[data-w]").forEach((b) => b.onclick = () => {
+  document.querySelector("main").style.maxWidth = b.dataset.w || "";
+  document.querySelectorAll("[data-w]").forEach((x) => x.classList.toggle("on", x === b));
+});
+document.getElementById("reset").onclick = () => { wishes = {}; notices = {}; lastAction = "reset"; render(); };
+render();
+</script>
+</body>
+</html>

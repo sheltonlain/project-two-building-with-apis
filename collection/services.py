@@ -10,7 +10,7 @@ from django.utils.dateparse import parse_datetime
 from catalog import tcgdex
 from catalog.models import Card, CardVariant
 
-from .models import OwnedCard
+from .models import OwnedCard, Wish
 
 CENTS = Decimal("0.01")
 
@@ -81,6 +81,56 @@ def add_copy(user, card_id, variant, probe=False):
             owned.save(update_fields=["quantity", "updated"])
             owned.refresh_from_db()
     return owned
+
+
+def add_wish(user, card_id, variant, probe=False):
+    """Wish for a card variant. Returns (wish, created); an active wish for the same variant is
+    returned, not duplicated."""
+    card = get_or_create_card(card_id, probe=probe)
+    card_variant = card.variants.filter(variant=variant).first()
+    if card_variant is None:
+        raise UnsupportedVariant(f"{card.name} doesn't come in that variant.")
+    return Wish.objects.get_or_create(user=user, variant=card_variant, fulfilled_at__isnull=True)
+
+
+def active_wishes(user):
+    """The user's wishes that haven't been fulfilled, newest first."""
+    return (
+        Wish.objects.filter(user=user, fulfilled_at__isnull=True)
+        .select_related("variant__card")
+        .order_by("-created", "-pk")
+    )
+
+
+def wished_variants(user, card_id):
+    """The variant codes of one card that the user has an active wish for."""
+    wishes = active_wishes(user).filter(variant__card__tcgdex_id=card_id)
+    return set(wishes.values_list("variant__variant", flat=True))
+
+
+def remove_wish(wish):
+    """Delete a wish. Returns what undo_wish_removal() needs to put it back, as JSON-safe data
+    (it is kept in the session)."""
+    record = {"variant": wish.variant_id, "notes": wish.notes, "created": wish.created.isoformat()}
+    wish.delete()
+    return record
+
+
+def undo_wish_removal(user, record):
+    """Put back a wish removed by remove_wish(), with its notes and original date added, so it
+    returns to its old place on the wishlist. If the user has wished for that variant again
+    since, that wish is kept as it is. Returns the active wish."""
+    with transaction.atomic():
+        wish, created = Wish.objects.get_or_create(
+            user=user,
+            variant_id=record["variant"],
+            fulfilled_at__isnull=True,
+            defaults={"notes": record["notes"]},
+        )
+        if created:
+            Wish.objects.filter(pk=wish.pk).update(created=parse_datetime(record["created"]))
+            wish.refresh_from_db()
+    return wish
 
 
 def owned_quantities(user, card_id):

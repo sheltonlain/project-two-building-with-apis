@@ -123,6 +123,9 @@ class TileDetailsView(LoginRequiredMixin, TemplateView):
         context["owned_summary"] = ", ".join(
             f"{owned[v['code']]} {v['label']}" for v in variants if owned.get(v["code"])
         )
+        wished = services.wished_variants(self.request.user, card["id"])
+        context["wished"] = selected["code"] in wished
+        context["wish_summary"] = ", ".join(v["label"] for v in variants if v["code"] in wished)
 
     def render_to_response(self, context, **kwargs):
         response = super().render_to_response(context, **kwargs)
@@ -132,7 +135,7 @@ class TileDetailsView(LoginRequiredMixin, TemplateView):
 
 
 class TileActionView(TileDetailsView):
-    """Base for the tile's collection actions: POST `variant`, get the updated tile back.
+    """Base for the tile's actions: POST `variant`, get the updated tile back.
 
     After an action the card is stored locally, so the tile is drawn from the stored Card and
     doesn't depend on TCGdex.
@@ -192,3 +195,30 @@ class TileRemoveView(TileActionView):
             context["notice"] = f"Removed your last {label} copy."
         else:
             context["notice"] = f"Removed 1 {label}."
+
+
+class TileWishView(TileActionView):
+    """Add the selected variant to the user's wishlist."""
+
+    def act(self, context, card_id, variant):
+        try:
+            wish, created = services.add_wish(self.request.user, card_id, variant)
+        except services.UnsupportedVariant:
+            context["error"] = "This card doesn't come in that variant. Pick one from the list."
+        except tcgdex.NotFound:
+            context["not_found"] = True
+        except tcgdex.ProviderUnavailable:
+            context["unavailable"] = True
+            context["error"] = (
+                "We couldn't add this card to your wishlist because TCGdex, the card database, "
+                "didn't respond. Try again in a minute."
+            )
+            context["retry_url"] = reverse("catalog:tile_details", args=[card_id])
+            context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(0, RETRY_SPREAD)
+        else:
+            label = wish.variant.get_variant_display()
+            if created:
+                context["notice"] = f"Added {label} to your wishlist."
+            else:
+                context["notice"] = f"{label} is already on your wishlist."
+            context["update_nav"] = True

@@ -11,4 +11,6 @@ urlpatterns = [
     path("collection/<int:pk>/delete/", views.EntryDeleteView.as_view(), name="entry_delete"),
     path("collection/<int:pk>/undo/", views.EntryUndoView.as_view(), name="entry_undo"),
     path("wishlist/", views.WishlistView.as_view(), name="wishlist"),
+    path("wishlist/<int:pk>/remove/", views.WishRemoveView.as_view(), name="wish_remove"),
+    path("wishlist/<int:pk>/undo/", views.WishUndoView.as_view(), name="wish_undo"),
 ]

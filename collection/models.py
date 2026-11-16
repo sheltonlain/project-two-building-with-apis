@@ -29,3 +29,33 @@ class OwnedCard(models.Model):
 
     def __str__(self):
         return f"{self.user} owns {self.quantity} × {self.variant}"
+
+
+class Wish(models.Model):
+    """A card variant the user wants. A fulfilled wish keeps its row (crossed out on the
+    wishlist) until the user dismisses it."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="wishes"
+    )
+    variant = models.ForeignKey(CardVariant, on_delete=models.PROTECT, related_name="wishes")
+    notes = models.CharField(max_length=NOTES_MAX_LENGTH, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    fulfilled_at = models.DateTimeField(null=True, blank=True)
+    fulfilled_by = models.ForeignKey(
+        OwnedCard, on_delete=models.SET_NULL, null=True, blank=True, related_name="fulfilled_wishes"
+    )
+
+    class Meta:
+        verbose_name_plural = "wishes"
+        constraints = [
+            # One active wish per variant; fulfilled wishes don't count.
+            models.UniqueConstraint(
+                fields=["user", "variant"],
+                condition=models.Q(fulfilled_at__isnull=True),
+                name="unique_active_wish",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user} wishes for {self.variant}"

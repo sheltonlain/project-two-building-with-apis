@@ -39,6 +39,17 @@
               hx-vals='{"variant": "{{ selected.code }}"}'>Add to collection</button>
     {% endif %}
     {% if owned_summary %}<p class="text-xs opacity-70 mt-1">You own: {{ owned_summary }}</p>{% endif %}
+    {# Wishes are for the selected variant; once it's wished for, the badge replaces the button. #}
+    {% if not wished %}
+      <button type="button" class="btn btn-outline btn-sm w-full mt-1" hx-post="{% url 'catalog:tile_wish' card_id %}"
+              hx-vals='{"variant": "{{ selected.code }}"}' aria-label="Add {{ selected.label }} to wishlist">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5 shrink-0" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+        Add to wishlist
+      </button>
+    {% endif %}
+    {% if wish_summary %}
+      <p class="mt-1"><a href="{% url 'collection:wishlist' %}" class="badge badge-secondary badge-sm h-auto py-0.5">On your wishlist: {{ wish_summary }}</a></p>
+    {% endif %}
     {% if notice %}<p role="status" class="text-xs text-success mt-1">{{ notice }}</p>{% endif %}
     {% if error %}<p role="alert" class="text-xs text-error mt-1">{{ error }}</p>{% endif %}
   {% elif unavailable %}
@@ -58,3 +69,4 @@
     <p class="mt-1 opacity-70">TCGdex no longer lists this card's details.</p>
   {% endif %}
 </div>
+{% if update_nav %}{% include "includes/nav_wish_count.html" with oob=True %}{% endif %}

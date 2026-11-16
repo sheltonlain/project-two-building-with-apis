@@ -10,7 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from catalog.models import Card, CardVariant
-from collection.models import OwnedCard
+from collection.models import OwnedCard, Wish
 
 DEMO_PASSWORD = "pokedex-demo"
 MAIN_USER = "demo"  # owns the big collection
@@ -95,11 +95,29 @@ OTHER_COLLECTION = [
     ("base1-63", "normal", 4, ""),
 ]
 
+# (TCGdex ID, variant, notes), newest first like the collections.
+DEMO_WISHES = [
+    ("base1-4", "first_edition", "The grail"),
+    ("sv03.5-094", "normal", "Own the reverse holo already"),
+    ("sv03.5-025", "reverse", "A second copy for my binder"),
+    ("sv03.5-130", "reverse", ""),
+    ("sv03.5-039", "normal", "For my deck"),
+]
+
+OTHER_WISHES = [
+    ("sv03.5-054", "normal", "Misty's own wish"),
+]
+
+
+def _count(items, singular, plural):
+    return f"{len(items)} {singular if len(items) == 1 else plural}"
+
 
 class Command(BaseCommand):
     help = (
         f"Create demo users ({MAIN_USER!r} and {OTHER_USER!r}, password {DEMO_PASSWORD!r}) with "
-        "demo collections. Re-running resets both users' collections. Only runs with DEBUG on."
+        "demo collections and wishlists. Re-running resets both users' collections and "
+        "wishlists. Only runs with DEBUG on."
     )
 
     def add_arguments(self, parser):
@@ -114,12 +132,15 @@ class Command(BaseCommand):
             raise CommandError("seed_demo only runs with DEBUG on. Pass --force to run anyway.")
         with transaction.atomic():
             variants = self.seed_cards()
-            self.seed_user(MAIN_USER, DEMO_COLLECTION, variants)
-            self.seed_user(OTHER_USER, OTHER_COLLECTION, variants)
+            self.seed_user(MAIN_USER, DEMO_COLLECTION, DEMO_WISHES, variants)
+            self.seed_user(OTHER_USER, OTHER_COLLECTION, OTHER_WISHES, variants)
         self.stdout.write(
             self.style.SUCCESS(
-                f"Seeded {len(DEMO_COLLECTION)} entries for {MAIN_USER!r} and "
-                f"{len(OTHER_COLLECTION)} for {OTHER_USER!r}. Sign in as either user with "
+                f"Seeded {_count(DEMO_COLLECTION, 'entry', 'entries')} and "
+                f"{_count(DEMO_WISHES, 'wish', 'wishes')} for {MAIN_USER!r}, and "
+                f"{_count(OTHER_COLLECTION, 'entry', 'entries')} and "
+                f"{_count(OTHER_WISHES, 'wish', 'wishes')} for {OTHER_USER!r}. "
+                "Sign in as either user with "
                 f"password {DEMO_PASSWORD!r}."
             )
         )
@@ -154,12 +175,13 @@ class Command(BaseCommand):
                 )
         return variants
 
-    def seed_user(self, username, entries, variants):
+    def seed_user(self, username, entries, wishes, variants):
         user, _ = get_user_model().objects.get_or_create(
             username=username, defaults={"email": f"{username}@example.com"}
         )
         user.set_password(DEMO_PASSWORD)
         user.save()
+        Wish.objects.filter(user=user).delete()
         OwnedCard.objects.filter(user=user).delete()
         now = timezone.now()
         for days_ago, (card_id, code, quantity, notes) in enumerate(entries):
@@ -168,3 +190,6 @@ class Command(BaseCommand):
             )
             # created is auto_now_add, so the spread-out "date added" is set afterwards.
             OwnedCard.objects.filter(pk=owned.pk).update(created=now - timedelta(days=days_ago))
+        for days_ago, (card_id, code, notes) in enumerate(wishes):
+            wish = Wish.objects.create(user=user, variant=variants[card_id, code], notes=notes)
+            Wish.objects.filter(pk=wish.pk).update(created=now - timedelta(days=days_ago))

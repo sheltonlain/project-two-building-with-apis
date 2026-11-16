@@ -17,7 +17,7 @@
         {% if user.is_authenticated %}
           <li><a href="{% url 'catalog:search' %}">Search</a></li>
           <li><a href="{% url 'collection:index' %}">Collection</a></li>
-          <li><a href="{% url 'collection:wishlist' %}">Wishlist</a></li>
+          <li><a href="{% url 'collection:wishlist' %}">Wishlist {% include "includes/nav_wish_count.html" %}</a></li>
           <li><a href="{% url 'accounts:account' %}">{{ user.username }}</a></li>
           <li>
             <form method="post" action="{% url 'logout' %}">

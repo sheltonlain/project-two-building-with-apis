@@ -216,4 +216,67 @@ class EntryUndoView(EntryActionView):
 
 
 class WishlistView(LoginRequiredMixin, TemplateView):
+    """The user's active wishes, newest first, from local data only, so it works while TCGdex is
+    down."""
+
     template_name = "collection/wishlist.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["wishes"] = services.active_wishes(self.request.user)
+        return context
+
+
+WISH_UNDO_SESSION_KEY = "wishlist_undo"
+
+
+class WishActionView(LoginRequiredMixin, TemplateView):
+    """Base for a wish's actions. POST only.
+
+    HTMX requests get the wish (or a notice in its place) back, plus the nav's wish count swapped
+    out of band. Without HTMX the browser goes back to the wishlist.
+    """
+
+    http_method_names = ["post"]
+    template_name = "collection/_wish_action.html"
+
+    def respond(self, context):
+        if not is_htmx(self.request):
+            return redirect("collection:wishlist")
+        return self.render_to_response(context)
+
+
+class WishRemoveView(WishActionView):
+    """Remove a wish from the wishlist, with an Undo. Another user's wish is a 404."""
+
+    def post(self, request, pk):
+        wish = get_object_or_404(services.active_wishes(request.user), pk=pk)
+        record = services.remove_wish(wish)
+        records = request.session.get(WISH_UNDO_SESSION_KEY, {})
+        records.pop(str(pk), None)
+        records[str(pk)] = record
+        request.session[WISH_UNDO_SESSION_KEY] = dict(list(records.items())[-UNDO_KEEP:])
+        label = wish.variant.get_variant_display()
+        return self.respond(
+            {
+                "pk": pk,
+                "notice": f"Removed {wish.variant.card.name} ({label}) from your wishlist.",
+                "undo_url": reverse("collection:wish_undo", args=[pk]),
+            }
+        )
+
+
+class WishUndoView(WishActionView):
+    """Undo: put back the wish that Remove took away.
+
+    `pk` is the wish's ID before the removal; the wish comes back under a new ID.
+    """
+
+    def post(self, request, pk):
+        records = request.session.get(WISH_UNDO_SESSION_KEY, {})
+        record = records.pop(str(pk), None)
+        if record is None:
+            return self.respond({"pk": pk, "error": "This removal can no longer be undone."})
+        request.session[WISH_UNDO_SESSION_KEY] = records
+        wish = services.undo_wish_removal(request.user, record)
+        return self.respond({"pk": pk, "wish": wish, "notice": "Put it back on your wishlist."})

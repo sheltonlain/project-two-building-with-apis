@@ -1,0 +1,11 @@
+{# The response to a wish action: the wish, or a short notice where a removed one was. #}
+{% if wish %}
+  {% include "collection/_wish.html" %}
+{% else %}
+  <div id="wish-{{ pk }}" role="status" class="alert {% if error %}alert-warning{% else %}alert-success{% endif %} text-sm"
+       hx-target="this" hx-swap="outerHTML">
+    <span>{{ notice }}{{ error }}</span>
+    {% if undo_url %}<button type="button" class="btn btn-sm" hx-post="{{ undo_url }}">Undo</button>{% endif %}
+  </div>
+{% endif %}
+{% include "includes/nav_wish_count.html" with oob=True %}

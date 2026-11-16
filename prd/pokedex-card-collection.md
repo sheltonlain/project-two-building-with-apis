@@ -18,7 +18,7 @@ Pokedex is a Django web application where a signed-in collector can:
 
 - Search the TCGdex card catalog by name, set and rarity. Each result shows the card image, its available variants and its current market price.
 - Add cards to a personal **collection**, choosing the exact variant and adjusting quantity with a simple **− N owned +** stepper.
-- Keep a **wishlist** of cards they don't own yet. A wish can name a specific variant or accept "Any variant".
+- Keep a **wishlist** of cards they don't own yet. Each wish names the exact variant they want, just as collection entries do.
 - Have wishes fulfilled automatically. When they add a card that matches a wish, the wish is marked as fulfilled. It stays visible, crossed out, on the wishlist page, where the user can choose to keep wishing for it or dismiss it.
 - See the price of every card and the **total value** of their collection, based on TCGplayer market prices in USD, with an "as of" date and a button to refresh prices.
 - Browse, search, filter, sort and page through their collection and wishlist. These operations use data stored in the app itself, so they keep working when TCGdex is unavailable.
@@ -75,7 +75,7 @@ When TCGdex is slow or down, the app says so clearly, offers a Retry option, and
 ### Wishlist
 
 32. As a collector, I want to add a card to my wishlist with a specific variant, so that I can track exactly the version I'm hunting for.
-33. As a collector, I want to add a card to my wishlist as "Any variant", so that I can wish for a card when I don't mind which version I get.
+33. *(Removed 2026-11-15: every wish names a specific variant, as collection entries do.)*
 34. As a collector, I want to wish for a card I already own (for example a second copy, or a different variant), so that my wishlist reflects what I still want.
 35. As a collector, I want to remove a card from my wishlist, so that I can drop cards I no longer want.
 36. As a collector, I want a "Got it" button on wishlist entries, so that I can move a wished-for card into my collection directly from the wishlist.
@@ -83,7 +83,7 @@ When TCGdex is slow or down, the app says so clearly, offers a Retry option, and
 ### Wish fulfillment
 
 37. As a collector, I want a matching wish to be fulfilled automatically when I add a copy to my collection, so that my wishlist stays accurate without extra work.
-38. As a collector, I want an exact-variant wish to be fulfilled before an "Any variant" wish when both match, so that the most specific wish is the one used.
+38. *(Removed 2026-11-15: every wish names a specific variant, as collection entries do.)*
 39. As a collector, I want a wish for a specific variant to stay open when I add a different variant of the same card, so that receiving the wrong version doesn't wrongly clear my wish.
 40. As a collector, I want the search card to tell me when an add fulfilled a wish, with a "View on wishlist" link, so that I notice even though the wishlist isn't on screen.
 41. As a collector, I want fulfilled wishes to stay on the wishlist page, crossed out with a "Got it" badge and the date fulfilled, until I dismiss them, so that I can review what was fulfilled even after leaving the search page.
@@ -102,7 +102,7 @@ When TCGdex is slow or down, the app says so clearly, offers a Retry option, and
 51. As a collector, I want set, rarity and variant filter dropdowns that list only values found in my own collection, so that the choices are short and relevant.
 52. As a collector, I want my collection split into pages of 24 entries, with numbered pages, so that large collections stay easy to browse.
 53. As a collector, I want my filters, sort order and page to be kept as I move between pages of results, so that I don't lose my place.
-54. As a collector, I want my wishlist page to offer the same search, filter, sort and pagination controls as my collection, including an "Any variant" filter value, so that I only have to learn one set of controls.
+54. As a collector, I want my wishlist page to offer the same search, filter, sort and pagination controls as my collection, so that I only have to learn one set of controls.
 55. As a collector, I want to adjust quantity and remove entries from my collection page, so that I can manage my collection without returning to search.
 56. As a collector, I want my collection and wishlist to load and work even when TCGdex is down, so that my records are always available.
 
@@ -150,7 +150,7 @@ When TCGdex is slow or down, the app says so clearly, offers a Retry option, and
 87. As an API client, I want to update an entry's quantity and notes, so that my program can keep records current.
 88. As an API client, I want setting quantity to zero to delete the entry, so that the API behaves like the website's stepper.
 89. As an API client, I want to delete a collection entry, so that my program can remove cards.
-90. As an API client, I want to list, create, update (notes) and delete wishlist entries, including "Any variant" wishes, so that my program can manage my wishlist too.
+90. As an API client, I want to list, create, update (notes) and delete wishlist entries, so that my program can manage my wishlist too.
 91. As an API client, I want any entry that belongs to another user to return "not found", so that the API never reveals or changes other users' data.
 92. As an API client, I want requests without a valid token or session to be rejected, so that the API is never open to the public.
 
@@ -173,8 +173,8 @@ When TCGdex is slow or down, the app says so clearly, offers a Retry option, and
 - **Card:** one row per TCGdex card, shared by all users. It stores the TCGdex card ID (for example `sv03.5-025`), name, set ID and set name, series, rarity, local card number and the base image URL. Card rows are created the first time any user saves the card, and they are kept even when no one references them any more, so they also act as a cache.
 - **CardVariant:** one row per card and variant, unique on that pair. The variant is one of five fixed choices: Normal, Reverse holo, Holo, 1st Edition, W Promo. Each row stores a nullable market price (a decimal in USD, never a float) and a price-updated timestamp. The set of CardVariant rows for a card is its list of allowed variants, so a separate allowed-variants field is not needed. Rows are created from TCGdex's simple per-card variant flags.
 - **OwnedCard:** belongs to a user and points at one CardVariant. Stores a quantity (a positive whole number), optional notes (plain text, at most 500 characters) and created/updated timestamps. Unique on user and variant. The row is deleted when its quantity reaches zero.
-- **Wish:** belongs to a user and points at a Card. An optional pointer to a CardVariant means "Any variant" when empty. Also stores optional notes (plain text, at most 500 characters), created timestamp, a fulfilled-at timestamp (empty while the wish is active) and an optional pointer to the OwnedCard row that fulfilled it.
-- OwnedCard and Wish are deliberately separate models, because they have different fields (quantity versus "Any variant" and fulfillment).
+- **Wish:** belongs to a user and points at one CardVariant, like OwnedCard. A user has at most one active wish per variant. Also stores optional notes (plain text, at most 500 characters), created timestamp, a fulfilled-at timestamp (empty while the wish is active) and an optional pointer to the OwnedCard row that fulfilled it.
+- OwnedCard and Wish are deliberately separate models, because they have different fields (quantity versus fulfillment).
 - Item condition (Mint, Near Mint and so on) is not tracked, because it cannot affect price with the available data.
 
 ### Business rules (shared services module)
@@ -182,11 +182,11 @@ When TCGdex is slow or down, the app says so clearly, offers a Retry option, and
 All rules live in one services module that both the website views and the API call, so the two always behave the same.
 
 - **Adding a copy:** look up or create the Card and its CardVariants, fetching from TCGdex if the card is new locally. Reject variants that the card doesn't have. Add one to the quantity of the user's OwnedCard row for that variant, creating the row if needed.
-- **Wish matching:** after an add, find the user's active wish for the same card with the same variant. If there is none, find an "Any variant" wish for that card. Mark the first match fulfilled: set the fulfilled-at timestamp and link it to the OwnedCard row. Only one wish is fulfilled per copy added.
+- **Wish matching:** after an add, find the user's active wish for the same variant. If there is one, mark it fulfilled: set the fulfilled-at timestamp and link it to the OwnedCard row. Only one wish is fulfilled per copy added.
 - **Removing a copy ("−"):** subtract one from the quantity and delete the row at zero. If any wish was fulfilled by that OwnedCard row, restore the one fulfilled most recently by clearing its fulfilled-at timestamp and link.
 - **Keep it on my wishlist:** clear the wish's fulfilled-at timestamp and link. The copy stays.
 - **Dismiss (OK):** delete the fulfilled wish.
-- **Got it (from the wishlist):** add a copy of the wished variant, or of the card's first available variant for an "Any variant" wish. This goes through the same add-and-fulfill logic.
+- **Got it (from the wishlist):** add a copy of the wished variant. This goes through the same add-and-fulfill logic.
 - **Variant data:** use TCGdex's simple flags only (normal, reverse, holo, firstEdition, wPromo). The detailed variant data (stamps, foils, subtypes) is ignored.
 
 ### TCGdex client
@@ -218,7 +218,7 @@ All rules live in one services module that both the website views and the API ca
 - **Collection sort options:** name, price, value (price × quantity, computed in the database query), quantity and date added, ascending or descending. The default is date added, newest first. Entries with no price sort last when sorting by price or value.
 - **Search and filters:** the search box matches card name or notes (case-insensitive contains). The set, rarity and variant dropdowns list only values present in that user's own rows.
 - Pagination uses Django's paginator at 24 per page with numbered pages. The current filters and sort are kept in the query string across pages.
-- The wishlist page uses the same controls. Its variant filter includes "Any variant". Its sort options are those that apply to wishes (name, date added, and price where a specific variant is wished for).
+- The wishlist page uses the same controls. Its sort options are those that apply to wishes (name, date added and price).
 - The wishlist page shows active wishes with a "Got it" button and fulfilled-but-not-dismissed wishes crossed out with a "Got it" badge, the fulfilled date, and "Keep it on my wishlist" and "OK" buttons.
 - The navigation shows the count of active wishes, plus a separate badge for fulfilled wishes awaiting dismissal.
 - **Collection value:** the total of price × quantity for the user's rows, computed with a database aggregate. It is shown with the count of entries that have no price, and the oldest "as of" date among the stored prices.
@@ -238,7 +238,7 @@ All rules live in one services module that both the website views and the API ca
 - Built with Django REST Framework. DRF's token authentication (one token per user) and session authentication are both enabled. Session authentication makes the browsable API usable while signed in on the website.
 - **Resources:** a collection endpoint and a wishlist endpoint. Each supports list, create, retrieve, partial update and delete.
 - **Collection create** accepts a TCGdex card ID, a variant, a quantity (default 1) and optional notes. It goes through the shared services module, so it fetches the card from TCGdex when it isn't stored locally, validates the variant and fulfills matching wishes. The response includes nested card details, the variant, quantity, market price, price-updated time, notes and the fulfilled wish (or null).
-- **Wishlist create** accepts a TCGdex card ID, an optional variant (empty means "Any variant") and optional notes.
+- **Wishlist create** accepts a TCGdex card ID, a variant and optional notes.
 - **Partial updates** may change only quantity and notes on collection entries, and only notes on wishes. Changing a variant requires deleting and re-creating the entry. Setting a collection entry's quantity to zero deletes it.
 - **List endpoints** are paginated and support the same search, set, rarity, variant and ordering options as the web pages.
 - Every endpoint is limited to the requesting user's own rows. Other users' IDs return 404, and unauthenticated requests are rejected.
@@ -248,7 +248,7 @@ All rules live in one services module that both the website views and the API ca
 
 - pytest with pytest-django. Every TCGdex call is faked with the `responses` library, so tests never reach the real API.
 - **Key behaviors to test:**
-  - Exact-variant-before-Any wish matching, and wrong-variant non-fulfillment.
+  - Wish matching on the exact variant, and wrong-variant non-fulfillment.
   - "−" restoring the most recently fulfilled wish.
   - Quantity-zero deletion on both the website and the API.
   - "Keep it on my wishlist" and "OK".
@@ -267,6 +267,7 @@ All rules live in one services module that both the website views and the API ca
 - **Public sharing** of collections or wishlists, including viewing other users' collections and copying other users' cards into a wishlist. This was removed from the requirements.
 - **Email verification and password-reset emails.** Emails are collected and unique, so either can be added later, but neither is built now.
 - **Social login** (Google, GitHub) and JWT or expiring API tokens.
+- **"Any variant" wishes.** Every wish names a specific variant (removed 2026-11-15).
 - **Card condition** (Mint, Near Mint, and so on) and any condition-based price adjustment.
 - **Detailed variants** such as stamps, foil patterns and print subtypes (for example "shadowless" or "1st-edition stamp"). Only the five simple variant types are supported.
 - **Cardmarket (EUR) prices, currency conversion** and mixing currencies.

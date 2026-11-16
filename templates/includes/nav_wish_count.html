@@ -1,0 +1,3 @@
+{# The nav's active-wish count. Responses that change it include this with oob=True. #}
+<span id="nav-wish-count" class="badge badge-sm badge-secondary{% if not active_wish_count %} hidden{% endif %}"
+      aria-label="{{ active_wish_count }} active wish{{ active_wish_count|pluralize:'es' }}"{% if oob %} hx-swap-oob="true"{% endif %}>{{ active_wish_count }}</span>
