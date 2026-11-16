@@ -28,6 +28,42 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 6: add to collection and the stepper
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 6`
+2. "I like this except for cards where certain variants are not available, I don't think they should even be an option in the dropdown menu. Can we make that happen?"
+3. "Go ahead with the TDD cycle"
+4. "Go ahead" (approved behavior 1's test: first add stores the card, second add increments)
+5. "Go to cycle 2"
+6. "Yes" (approved behavior 2's test: unsupported variant is rejected)
+7. "Yes, proceed" (move on to cycle 3)
+8. "Yes" (approved behavior 3's test: the last "−" deletes the entry but keeps the card)
+9. "Yes, go ahead" (build the rest of the phase)
+10. "Can you create the superuser and give me the credentials? If not, walk me through the steps."
+11. "Manual verification passed, everything works. The only thing is that card prices are not shown in the admin page."
+12. "Update CLAUDE.md as suggested. Please also list the admin credentials somewhere so I can easily access them when I need to. After that, ask me if I want to update PROMPTS.md"
+13. "Yes, update PROMPTS.md then commit and push"
+
+### Summary
+- **Outcome:** Added the Card, CardVariant and OwnedCard models; `collection/services.py` with
+  `add_copy` (fetches and stores the card if new, rejects unsupported variants), `remove_copy`
+  (deletes the entry at zero, keeps the Card) and `owned_quantities`; tile Add button,
+  "− N owned +" stepper, "You own: …" summary and confirmation, via new add/remove POST views
+  that redraw the tile from the stored Card so they work while TCGdex is down. Three behaviors
+  were built test-first; 114 tests pass. Admin registration with price columns, a local
+  superuser (login kept in the git-ignored `.env`), and a CLAUDE.md line about tiles being drawn
+  from the stored Card after an action.
+- **Deviations:** Asked to hide variants a card doesn't come in from the dropdown; this already
+  happened since phase 5 (only true TCGdex flags are listed), so no change was made, and keeping
+  unpriced variants (shown as "No price") was recommended. Asked for the superuser to be created
+  and its credentials recorded somewhere easy to find.
+- **Sideways:** The first runs of TDD tests 1 and 2 failed with exceptions (`DoesNotExist`, then
+  a NOT NULL `IntegrityError`) instead of assertions, so the test lookup and a stub guard were
+  adjusted to get a true RED. Prices were stored but not visible on the admin list pages until
+  price columns were added; a first check of those pages returned 400 because the script's test
+  client used a hostname not in `ALLOWED_HOSTS`, not because of the app.
+
 ## 2026-11-15 — Implemented Phase 5: lazy tile details
 
 ### Prompts

@@ -220,6 +220,15 @@ def set_groups(probe=False):
     return groups
 
 
+def cached_series_name(set_id):
+    """The series a set belongs to, from the cached set list only (never a request); "" if the
+    list isn't cached or doesn't have the set. Card details don't say which series a set is in."""
+    for group in cache.get(SET_GROUPS_KEY) or []:
+        if any(item["id"] == set_id for item in group["sets"]):
+            return group["name"]
+    return ""
+
+
 def rarities(probe=False):
     """Return every rarity name, alphabetical (ignoring case), cached for 24 hours."""
     names = cache.get(RARITIES_KEY)

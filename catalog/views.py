@@ -2,9 +2,15 @@ import random
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views.generic import TemplateView
 
+from collection import services
+from collection.models import OwnedCard
+
 from . import tcgdex
+from .models import Card
 
 PAGE_SIZE = 24
 FILTERS = ("name", "set", "rarity")
@@ -78,7 +84,8 @@ class SearchView(LoginRequiredMixin, TemplateView):
 
 
 class TileDetailsView(LoginRequiredMixin, TemplateView):
-    """The lower half of one search tile: set, rarity, variant choice and price.
+    """The lower half of one search tile: set, rarity, variant choice, price, and the user's
+    Add button or "− N owned +" stepper for the selected variant.
 
     Each tile loads this separately, so one card failing doesn't affect the others.
     """
@@ -88,7 +95,6 @@ class TileDetailsView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         card_id = self.kwargs["card_id"]
-        wanted = self.request.GET.get("variant", "")
         context["card_id"] = card_id
         try:
             card = TCGdexCaller(self.request)(tcgdex.card_detail, card_id)
@@ -103,13 +109,86 @@ class TileDetailsView(LoginRequiredMixin, TemplateView):
             context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(0, RETRY_SPREAD)
             return context
 
-        variants = card["variants"]
-        context["card"] = card
-        context["selected"] = next((v for v in variants if v["code"] == wanted), variants[0])
+        self.add_card_context(context, card, self.request.GET.get("variant", ""))
         return context
+
+    def add_card_context(self, context, card, wanted):
+        """Fill in the card, the selected variant and what the user owns of it."""
+        variants = card["variants"]
+        selected = next((v for v in variants if v["code"] == wanted), variants[0])
+        owned = services.owned_quantities(self.request.user, card["id"])
+        context["card"] = card
+        context["selected"] = selected
+        context["owned_count"] = owned.get(selected["code"], 0)
+        context["owned_summary"] = ", ".join(
+            f"{owned[v['code']]} {v['label']}" for v in variants if owned.get(v["code"])
+        )
 
     def render_to_response(self, context, **kwargs):
         response = super().render_to_response(context, **kwargs)
         if is_user_retry(self.request) and "card" in context:
             response["HX-Trigger"] = TCGDEX_BACK_EVENT
         return response
+
+
+class TileActionView(TileDetailsView):
+    """Base for the tile's collection actions: POST `variant`, get the updated tile back.
+
+    After an action the card is stored locally, so the tile is drawn from the stored Card and
+    doesn't depend on TCGdex.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, card_id):
+        context = {"card_id": card_id}
+        variant = request.POST.get("variant", "")
+        self.act(context, card_id, variant)
+        if "unavailable" not in context and "not_found" not in context:
+            card = get_object_or_404(Card, tcgdex_id=card_id)
+            self.add_card_context(context, card.as_detail(), variant)
+        return self.render_to_response(context)
+
+    def act(self, context, card_id, variant):
+        raise NotImplementedError
+
+
+class TileAddView(TileActionView):
+    """ "Add to collection" and the stepper's "+": one more copy of the selected variant."""
+
+    def act(self, context, card_id, variant):
+        try:
+            owned = services.add_copy(self.request.user, card_id, variant)
+        except services.UnsupportedVariant:
+            context["error"] = "This card doesn't come in that variant. Pick one from the list."
+        except tcgdex.NotFound:
+            context["not_found"] = True
+        except tcgdex.ProviderUnavailable:
+            context["unavailable"] = True
+            context["error"] = (
+                "We couldn't add this card because TCGdex, the card database, didn't respond. "
+                "Try again in a minute."
+            )
+            context["retry_url"] = reverse("catalog:tile_details", args=[card_id])
+            context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(0, RETRY_SPREAD)
+        else:
+            context["notice"] = f"Added 1 {owned.variant.get_variant_display()}."
+
+
+class TileRemoveView(TileActionView):
+    """The stepper's "−": one copy fewer; the entry is deleted when none are left."""
+
+    def act(self, context, card_id, variant):
+        owned = (
+            OwnedCard.objects.select_related("variant")
+            .filter(user=self.request.user, variant__card__tcgdex_id=card_id)
+            .filter(variant__variant=variant)
+            .first()
+        )
+        if owned is None:
+            return  # nothing of this variant to remove (e.g. already removed in another tab)
+        label = owned.variant.get_variant_display()
+        if services.remove_copy(owned) is None:
+            context["notice"] = f"Removed your last {label} copy."
+        else:
+            context["notice"] = f"Removed 1 {label}."

@@ -135,12 +135,12 @@ Introduce Card, CardVariant and OwnedCard, plus the services module's add and re
 
 ### Acceptance criteria
 
-- [ ] The first add creates Card and CardVariant rows with Decimal prices and timestamps, and an OwnedCard with quantity 1.
-- [ ] "+" and "−" change the quantity; reaching zero deletes the OwnedCard row (Card rows remain).
-- [ ] Unsupported variants are rejected by the service.
-- [ ] The owned summary and confirmation update after each action, and switching variant shows that variant's price and count.
-- [ ] Add and step actions require sign-in and only ever touch the requester's rows.
-- [ ] Tests cover variant validation, quantity-zero deletion and owner scoping.
+- [x] The first add creates Card and CardVariant rows with Decimal prices and timestamps, and an OwnedCard with quantity 1.
+- [x] "+" and "−" change the quantity; reaching zero deletes the OwnedCard row (Card rows remain).
+- [x] Unsupported variants are rejected by the service.
+- [x] The owned summary and confirmation update after each action, and switching variant shows that variant's price and count.
+- [x] Add and step actions require sign-in and only ever touch the requester's rows.
+- [x] Tests cover variant validation, quantity-zero deletion and owner scoping.
 
 ---
 

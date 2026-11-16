@@ -23,7 +23,26 @@
     <p class="mt-1 font-semibold">
       {% if selected.price is not None %}${{ selected.price }}{% else %}<span class="opacity-70">No price</span>{% endif %}
     </p>
+    {# Buttons act on the selected variant; changing the dropdown re-renders them for the new one. #}
+    {% url 'catalog:tile_add' card_id as add_url %}
+    {% url 'catalog:tile_remove' card_id as remove_url %}
+    {% if owned_count %}
+      <div class="join w-full mt-2">
+        <button type="button" class="btn btn-sm join-item" hx-post="{{ remove_url }}"
+                hx-vals='{"variant": "{{ selected.code }}"}' aria-label="Remove one {{ selected.label }}">−</button>
+        <span class="join-item flex-1 flex items-center justify-center border border-base-300 text-sm font-semibold">{{ owned_count }} owned</span>
+        <button type="button" class="btn btn-sm btn-primary join-item" hx-post="{{ add_url }}"
+                hx-vals='{"variant": "{{ selected.code }}"}' aria-label="Add one {{ selected.label }}">+</button>
+      </div>
+    {% else %}
+      <button type="button" class="btn btn-primary btn-sm w-full mt-2" hx-post="{{ add_url }}"
+              hx-vals='{"variant": "{{ selected.code }}"}'>Add to collection</button>
+    {% endif %}
+    {% if owned_summary %}<p class="text-xs opacity-70 mt-1">You own: {{ owned_summary }}</p>{% endif %}
+    {% if notice %}<p role="status" class="text-xs text-success mt-1">{{ notice }}</p>{% endif %}
+    {% if error %}<p role="alert" class="text-xs text-error mt-1">{{ error }}</p>{% endif %}
   {% elif unavailable %}
+    {% if error %}<p role="alert" class="text-xs text-error mt-1">{{ error }}</p>{% endif %}
     <div class="flex items-center gap-2 mt-1">
       <span class="loading loading-ring loading-sm text-warning shrink-0" aria-hidden="true"></span>
       <div>
