@@ -17,6 +17,7 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - Business rules live in one shared services module; website views and the API both call it.
 - A single TCGdex client module is the only code that talks to TCGdex, and it raises its own exceptions.
 - TCGdex filters are contains matches; prefix a value with `eq:` for an exact match.
+- While the TCGdex circuit breaker is open, automatic calls fail fast; a user-requested retry (`X-User-Retry: 1` header → `probe=True`) sends one real request and clears the breaker if it works.
 - Caching uses Django's database cache backend (SQLite).
 - Every user-owned query is scoped to the signed-in user; other users' objects return 404.
 - Settings are deploy-ready: secret key, debug and allowed hosts come from environment variables, loaded locally from a git-ignored `.env`.

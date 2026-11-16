@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tile Failure Retry</title>
+<!-- THROWAWAY PROTOTYPE. Not production code. Phase 5: how a search tile whose details failed to load looks, and how the user gets them back.
+     DECISION (2026-11-15): option D. Tiles count down to when the circuit breaker closes and retry on their own
+     (no action needed, and honest about when it will work again); one banner above the grid counts the failed
+     tiles so an outage reads as one calm message, with "Retry all now" instead of a button per tile. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0/daisyui.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.0.0"></script>
+<style>
+  /* Prototype chrome: deliberately NOT DaisyUI so it stays separate from the design being judged */
+  .proto { position: fixed; z-index: 9999; background: #111; color: #eee; font: 12px/1.4 ui-monospace, Consolas, monospace;
+           border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+  .proto button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; cursor: pointer; font: inherit; }
+  .proto button.on { background: #f0c419; color: #111; border-color: #f0c419; }
+  .proto .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .proto .lbl { color: #999; }
+  .proto .desc { color: #bbb; max-width: 420px; }
+  #proto-switcher { left: 12px; bottom: 12px; display: grid; gap: 6px; max-width: calc(100vw - 24px); }
+  #proto-state { right: 12px; bottom: 12px; width: min(330px, calc(100vw - 24px)); max-height: 45vh; overflow: auto; }
+  #proto-state table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  #proto-state td { padding: 1px 4px; border-bottom: 1px solid #333; }
+  .st-ok { color: #69db7c; } .st-failed { color: #ff8787; } .st-loading { color: #f0c419; }
+  .flash { animation: flash 1.4s ease-out; }
+  @keyframes flash { from { background: color-mix(in oklab, var(--color-success) 25%, transparent); } to { background: transparent; } }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+
+<nav class="navbar bg-base-100 shadow-sm px-4">
+  <div class="flex-1"><a class="btn btn-ghost text-xl">Pokedex</a></div>
+  <ul class="menu menu-horizontal items-center gap-1">
+    <li><a>Search</a></li><li><a>Collection</a></li><li><a>Wishlist</a></li><li><a>ash</a></li>
+    <li><button class="btn btn-sm btn-ghost">Sign out</button></li>
+  </ul>
+</nav>
+
+<main class="container mx-auto max-w-5xl p-4 pb-64">
+  <h1 class="text-3xl font-bold mb-4">Search cards</h1>
+  <form class="flex flex-wrap items-end gap-2 mb-4" onsubmit="return false">
+    <label class="form-control grow"><span class="label-text mb-1">Card name</span>
+      <input type="search" class="input input-bordered w-full" placeholder="e.g. pika"></label>
+    <label class="form-control"><span class="label-text mb-1">Set</span>
+      <select class="select select-bordered"><option>151</option></select></label>
+    <label class="form-control"><span class="label-text mb-1">Rarity</span>
+      <select class="select select-bordered"><option>Any rarity</option></select></label>
+    <button class="btn btn-primary">Search</button>
+  </form>
+  <div id="results"></div>
+</main>
+
+<div id="proto-switcher" class="proto">
+  <div class="row">
+    <span class="lbl">Option</span>
+    <button id="prev" title="Previous (←)">◀</button>
+    <b id="vname"></b>
+    <button id="next" title="Next (→)">▶</button>
+  </div>
+  <div class="desc" id="vdesc"></div>
+  <div class="row"><span class="lbl">Scenario</span>
+    <button data-scn="one">One card fails</button>
+    <button data-scn="outage">Outage partway through</button>
+    <button data-scn="all">Everything fails</button>
+  </div>
+  <div class="row"><span class="lbl">TCGdex now</span>
+    <button data-up="1">Back up</button><button data-up="0">Still down</button>
+    <button id="skip">Skip breaker wait</button>
+  </div>
+</div>
+
+<div id="proto-state" class="proto"></div>
+
+<script>
+const BREAKER_MS = 20000; // the real breaker is 60 s; shortened for the demo
+const CARDS = [
+  ["001", "Bulbasaur", "Common", [["Normal", "0.24"], ["Reverse holo", "0.62"]]],
+  ["002", "Ivysaur", "Common", [["Normal", "0.19"], ["Reverse holo", "0.55"]]],
+  ["003", "Venusaur ex", "Double rare", [["Holo", "2.85"]]],
+  ["004", "Charmander", "Common", [["Normal", "0.41"], ["Reverse holo", "1.10"]]],
+  ["005", "Charmeleon", "Uncommon", [["Normal", "0.30"], ["Reverse holo", "0.88"]]],
+  ["006", "Charizard ex", "Double rare", [["Holo", "4.95"]]],
+  ["007", "Squirtle", "Common", [["Normal", "0.35"], ["Reverse holo", null]]],
+  ["008", "Wartortle", "Uncommon", [["Normal", "0.22"], ["Reverse holo", "0.64"]]],
+  ["009", "Blastoise ex", "Double rare", [["Holo", "3.40"]]],
+  ["010", "Caterpie", "Common", [["Normal", "0.12"], ["Reverse holo", "0.40"]]],
+  ["011", "Metapod", "Common", [["Normal", "0.10"], ["Reverse holo", "0.35"]]],
+  ["012", "Butterfree", "Uncommon", [["Normal", "0.18"], ["Reverse holo", "0.51"]]],
+].map(([n, name, rarity, variants]) => ({ id: `sv03.5-${n}`, n, name, rarity, variants }));
+
+const VARIANTS = [
+  { key: "A", name: "Per-tile Retry",
+    desc: "Each failed tile says what happened and has its own Retry button. (Current plan.)" },
+  { key: "B", name: "One banner, Retry all",
+    desc: "Failed tiles show a quiet note; one banner above the grid counts them and retries all of them." },
+  { key: "C", name: "Automatic retry",
+    desc: "Failed tiles count down to when the breaker allows requests again, then retry by themselves. 'Try now' skips the wait." },
+  { key: "D", name: "Automatic retry + banner (CHOSEN)",
+    desc: "C's self-retrying tiles, plus B's banner counting the failed tiles with the same countdown and a 'Retry all now' button." },
+];
+
+let vi = 0;
+try { vi = Math.max(0, VARIANTS.findIndex(v => v.key === localStorage.getItem("proto-tile-variant"))); } catch {}
+let scenario = "outage";
+let tcgdexUp = true;
+let breakerUntil = 0;
+let requests = 0;
+let tiles = [];
+let flashIds = new Set();
+
+function breakerLeft() { return Math.max(0, breakerUntil - Date.now()); }
+
+function startScenario(name) {
+  scenario = name;
+  breakerUntil = 0; requests = 0;
+  tiles = CARDS.map(() => ({ status: "loading", sel: 0, tries: 0 }));
+  render();
+  CARDS.forEach((card, i) => {
+    const fails = name === "all" || (name === "one" && i === 3) || (name === "outage" && i >= 5);
+    setTimeout(() => {
+      requests++;
+      tiles[i].tries++;
+      if (fails) { tiles[i].status = "failed"; if (!breakerUntil || name !== "one") breakerUntil = Date.now() + BREAKER_MS; }
+      else tiles[i].status = "ok";
+      render();
+    }, 350 + i * 120);
+  });
+}
+
+function retry(i) {
+  const t = tiles[i];
+  if (t.status !== "failed") return;
+  t.status = "loading"; render();
+  setTimeout(() => {
+    t.tries++;
+    if (breakerLeft() > 0) { t.status = "failed"; }            // fails fast, no network request
+    else {
+      requests++;
+      if (tcgdexUp) { t.status = "ok"; flashIds.add(i); }
+      else { t.status = "failed"; breakerUntil = Date.now() + BREAKER_MS; }
+    }
+    render();
+  }, breakerLeft() > 0 ? 150 : 600);
+}
+
+function retryAll() { tiles.forEach((t, i) => t.status === "failed" && retry(i)); }
+
+// ---------- tile lower halves ----------
+
+function details(card, t, i) {
+  const v = card.variants[t.sel];
+  const select = `<select class="select select-bordered select-sm w-full mt-1" ${card.variants.length === 1 ? "disabled" : ""} onchange="tiles[${i}].sel=this.selectedIndex;render()">
+      ${card.variants.map((x, k) => `<option ${k === t.sel ? "selected" : ""}>${x[0]}</option>`).join("")}</select>`;
+  return `<p class="opacity-70">151 · ${card.rarity}</p>${select}
+    <p class="mt-1 font-semibold">${v[1] ? "$" + v[1] : '<span class="opacity-70">No price</span>'}</p>`;
+}
+
+function loading() {
+  return `<div class="space-y-2 mt-1"><div class="skeleton h-3 w-2/3"></div><div class="skeleton h-8 w-full"></div><div class="skeleton h-3 w-1/3"></div></div>`;
+}
+
+function failedA(i) {
+  return `<div class="rounded-box bg-warning/15 border border-warning/40 p-2 mt-1">
+      <p class="font-semibold">Details unavailable</p>
+      <p class="text-xs opacity-80">We couldn't load this card's set, variants and price from TCGdex.</p>
+      <button class="btn btn-xs btn-outline mt-2" onclick="retry(${i})">Retry</button></div>`;
+}
+
+function failedB() {
+  return `<p class="mt-1 opacity-60 italic">Details unavailable</p>
+    <div class="skeleton h-8 w-full mt-1 opacity-40 animate-none"></div>`;
+}
+
+function failedC(i) {
+  const left = Math.ceil(breakerLeft() / 1000);
+  const pct = Math.round((breakerLeft() / BREAKER_MS) * 100);
+  return `<div class="flex items-center gap-2 mt-1">
+      <div class="radial-progress text-warning text-xs" style="--value:${pct};--size:2.25rem;--thickness:3px" role="progressbar">${left}s</div>
+      <div><p class="font-semibold leading-tight">Details unavailable</p>
+        <p class="text-xs opacity-70">${left ? `Trying again in ${left}s` : "Trying again…"} · <a class="link" onclick="retry(${i})">Try now</a></p></div></div>`;
+}
+
+function render() {
+  const key = VARIANTS[vi].key;
+  const failed = tiles.filter(t => t.status === "failed").length;
+  let banner = "";
+  if (key === "D" && failed) {
+    const left = Math.ceil(breakerLeft() / 1000);
+    banner = `<div role="alert" class="alert alert-warning mb-4">
+      <span>${failed} card${failed === 1 ? "" : "s"} couldn't load ${failed === 1 ? "its" : "their"} details from TCGdex.
+        ${left ? `Trying again in ${left}s.` : "Trying again…"}</span>
+      <button class="btn btn-sm" onclick="retryAll()">Retry all now</button></div>`;
+  }
+  if (key === "B" && failed) {
+    banner = `<div role="alert" class="alert alert-warning mb-4">
+      <span>${failed} card${failed === 1 ? "" : "s"} couldn't load ${failed === 1 ? "its" : "their"} details from TCGdex. Images and names are still shown.</span>
+      <button class="btn btn-sm" onclick="retryAll()">Retry all</button></div>`;
+  }
+  document.getElementById("results").innerHTML = `
+    <p class="mb-4 font-semibold">165 cards found</p>${banner}
+    <ul class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+      ${CARDS.map((card, i) => {
+        const t = tiles[i];
+        let lower = t.status === "loading" ? loading() : t.status === "ok" ? details(card, t, i)
+          : key === "A" ? failedA(i) : key === "B" ? failedB() : failedC(i); // C and D share tiles
+        const flash = flashIds.has(i) ? "flash" : "";
+        return `<li class="card bg-base-100 shadow-sm ${flash}">
+          <figure class="px-3 pt-3"><img src="https://assets.tcgdex.net/en/sv/sv03.5/${card.n}/low.webp" alt="${card.name}" class="w-full aspect-[63/88] object-contain rounded"></figure>
+          <div class="card-body p-3"><h2 class="card-title text-base">${card.name}</h2><div class="text-sm">${lower}</div></div></li>`;
+      }).join("")}
+    </ul>`;
+  flashIds.clear();
+  renderChrome();
+}
+
+function renderChrome() {
+  const v = VARIANTS[vi];
+  document.getElementById("vname").textContent = `${v.key}. ${v.name}`;
+  document.getElementById("vdesc").textContent = v.desc;
+  document.querySelectorAll("[data-scn]").forEach(b => b.classList.toggle("on", b.dataset.scn === scenario));
+  document.querySelectorAll("[data-up]").forEach(b => b.classList.toggle("on", (b.dataset.up === "1") === tcgdexUp));
+  const left = Math.ceil(breakerLeft() / 1000);
+  const count = s => tiles.filter(t => t.status === s).length;
+  document.getElementById("proto-state").innerHTML = `
+    <b>State</b><br>
+    TCGdex: ${tcgdexUp ? '<span class="st-ok">up</span>' : '<span class="st-failed">down</span>'}<br>
+    Breaker: ${left ? `<span class="st-failed">open, ${left}s left</span> (retries fail instantly)` : '<span class="st-ok">closed</span>'}<br>
+    Network requests sent: ${requests}<br>
+    Tiles: <span class="st-ok">${count("ok")} loaded</span>, <span class="st-failed">${count("failed")} failed</span>, <span class="st-loading">${count("loading")} loading</span>
+    <table>${CARDS.map((c, i) => `<tr><td>${c.id}</td><td class="st-${tiles[i].status}">${tiles[i].status}</td><td>tries ${tiles[i].tries}</td></tr>`).join("")}</table>`;
+}
+
+// Option C retries on its own when the breaker closes; every option's countdowns re-render each second.
+setInterval(() => {
+  if ("CD".includes(VARIANTS[vi].key) && breakerLeft() === 0) {
+    tiles.forEach((t, i) => { if (t.status === "failed") retry(i); });
+  }
+  if (tiles.some(t => t.status === "failed") || breakerLeft() > 0) render();
+}, 1000);
+
+function go(d) {
+  vi = (vi + d + VARIANTS.length) % VARIANTS.length;
+  try { localStorage.setItem("proto-tile-variant", VARIANTS[vi].key); } catch {}
+  render();
+}
+document.getElementById("prev").onclick = () => go(-1);
+document.getElementById("next").onclick = () => go(1);
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, select, textarea")) return;
+  if (e.key === "ArrowLeft") go(-1);
+  if (e.key === "ArrowRight") go(1);
+});
+document.querySelectorAll("[data-scn]").forEach(b => b.onclick = () => startScenario(b.dataset.scn));
+document.querySelectorAll("[data-up]").forEach(b => b.onclick = () => { tcgdexUp = b.dataset.up === "1"; renderChrome(); });
+document.getElementById("skip").onclick = () => { breakerUntil = 0; render(); };
+
+startScenario("outage");
+</script>
+</body>
+</html>

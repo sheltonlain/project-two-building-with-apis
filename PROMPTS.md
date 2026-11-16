@@ -28,6 +28,51 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-15 — Implemented Phase 5: lazy tile details
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 5`
+2. "yes, approved" (approved the three TDD behaviors)
+3. "Yes" (behavior 1: variant-flag mapping)
+4. "Is there a chance we are going to run into a card with no variants? If so, can we make it so that the variant defaults to normal? I do not want users to run into any erros."
+5. "yes, approved" (behavior 2: price extraction)
+6. "Yes, move on" (move on to behavior 3)
+7. `/prototype` can you please prototype the ui? I am curios to see what each card showing its own retry will look like to the user and what other options we have
+8. "I like option C, but I think it would be good if we also added a banner at the top similarly to option B."
+9. "yes, approved" (revised behavior 3 test for option D)
+10. "In f, why does try now fail if the countdown is still running? Isn't that pretty inconvenient to the user?"
+11. "yes, go ahead with the bypass and make the other changes you suggested"
+12. "Yes" (approved the user-retry tests)
+13. "yes, everything checks out. Can we make it so that the retry button also loads the real card images as well rather than the placeholder images if the request is successful?"
+14. "The real images did not come back"
+15. "No, they did not"
+16. "Yes" (the real images come back)
+17. "Add it to CLAUDE.md"
+18. "Yes, update PROMPTS.md then commit and push"
+
+### Summary
+- **Outcome:**
+  - The new `tcgdex.card_detail(card_id)` returns a card's set, rarity, image and variants, cached for 24 hours. Variants follow TCGdex's flags in a fixed order (Normal, Reverse holo, Holo, 1st Edition, W Promo). A card with no flags, `null` flags or all flags false gets Normal instead of an error.
+  - Each variant gets its TCGplayer `marketPrice` as a `Decimal` (built from the number's string form, rounded to cents) or `None` for "No price". Live checks showed the price keys vary, so each variant tries several: Normal tries `normal` then `unlimited`; Holo tries `holofoil` then `unlimited-holofoil`; 1st Edition tries `1st-edition-holofoil` then `1st-edition`; W Promo has none.
+  - Each search tile's lower half loads from `/search/card/<id>/` through HTMX: set · rarity, a variant dropdown (disabled when the card has one variant) and the price. Changing the variant reloads that half.
+  - Failed tiles follow prototype option D (`prototypes/tile-failure-retry.html`): "Details unavailable", a live countdown to when the circuit breaker closes, an automatic retry spread by 0–3 s, and a "Try now" link. A banner above the grid counts the failed tiles and offers "Retry all now".
+  - The breaker flag now stores its expiry time (`outage_seconds_left()`). Retries the user asks for (`X-User-Retry: 1` → `probe=True`) send one real request even while the breaker is open, and clear it if they work. This applies to the search Retry, the filter Retry, "Try now" and "Retry all now" (which checks with one tile first). A successful "Try now" sends `HX-Trigger: tcgdex-back`, so the other failed tiles retry too. The PRD, the plan and CLAUDE.md were updated to match.
+  - Card images that failed are marked and retried by a script in `base.html` when the browser comes back online, after a Back-button restore, and after a tile's details load. They load eagerly, because browsers never load a hidden lazy image.
+  - TDD covered variant mapping (plus the Normal default), price extraction and per-tile failure, and the breaker bypass was also written test-first. Normal tests cover the tile view, caching, unknown cards, sign-in, the search wiring and the image markup. 99 tests pass; Ruff is clean.
+  - All six Phase 5 acceptance criteria are ticked in the plan, backed by tests and the user's manual checks.
+- **Deviations:**
+  - The user asked for a Normal default for cards without variant flags, which wasn't in the plan.
+  - Instead of approving the per-tile Retry test, the user asked for a UI prototype, then picked a combination of options C and B (option D) rather than Claude's suggested A-plus-B hybrid. The behavior 3 test was rewritten and re-approved.
+  - The user questioned why "Try now" failed while the breaker was open. That led to the user-retry bypass, which changes the PRD's "every call fails immediately" rule to "automatic calls".
+  - The user asked for real images to come back after a successful retry, which was added to this phase.
+- **Sideways:**
+  - The first behavior 3 test assumed one failed tile wouldn't affect the others. Claude pointed out that the breaker makes every tile not yet fetched fail fast for 60 s, and the test was written around that.
+  - The user's manual check showed "Try now" was useless during the countdown: the breaker refused every call, including the one the user asked for.
+  - The `advance_clock` test fixture moved only the clock the DB cache uses to read expiry times, not the one it uses to write them (`time.time()`), so a flag set "in the future" looked expired. The fixture now moves both, plus the client's clock.
+  - Full test runs seemed to hang. Claude found that untouched account tests stalled too and the machine had slowed down for a few minutes. Two copies of the dev server were also running. A later run took the usual 40 s.
+  - One new test used `responses.replace` on a URL that wasn't registered. It was fixed to register the URL directly.
+  - Bringing images back took three tries. The first fix reset `src`, but a hidden lazy image never loads. The second added `loading="eager"`, but still only ran when a tile's details had to be retried, and page 3's details were already cached. Claude then reproduced it in headless Edge (offline, then online), which confirmed the eager reload works and that the `online` event alone restores the images, before asking the user to re-test.
+
 ## 2026-11-15 — Implemented Phase 4: set and rarity filters
 
 ### Prompts

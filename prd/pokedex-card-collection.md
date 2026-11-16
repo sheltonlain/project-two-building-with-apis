@@ -193,7 +193,8 @@ All rules live in one services module that both the website views and the API ca
 
 - A single client module is the only code that talks to TCGdex. It covers card search, card detail, the set list, the series list and the rarity list.
 - Every request uses a 3-second connect timeout and a 5-second read timeout. There are no automatic retries.
-- **Circuit breaker:** any failure (timeout, connection error, server error, malformed response) stores a "TCGdex down" flag in the cache for 60 seconds. While the flag is set, every client call fails immediately with a provider-unavailable error and makes no network request. After the flag expires, the next call tries the network again.
+- **Circuit breaker:** any failure (timeout, connection error, server error, malformed response) stores a "TCGdex down" flag in the cache for 60 seconds. While the flag is set, every automatic client call fails immediately with a provider-unavailable error and makes no network request. After the flag expires, the next call tries the network again.
+- **User retries:** a retry the user asks for (a Retry or "Try now" button) sends one real request even while the flag is set. If it succeeds, the flag is cleared for everyone; if it fails, the 60-second wait starts again. One click costs at most one failed request.
 - The client raises its own small set of exceptions, for example "provider unavailable" and "not found". Views and the API turn these into user-facing messages or HTTP 503 and 404 responses.
 - Image URLs from TCGdex have no file extension. The app adds the low-quality webp suffix for tiles and the high-quality one where a larger image is shown.
 
@@ -205,7 +206,7 @@ All rules live in one services module that both the website views and the API ca
 - An HTMX loading indicator shows while a search request is in flight.
 - **Tiles:** each result tile renders the image and name immediately. Its lower half (set, rarity, variant dropdown, price, Add button or stepper, wishlist badges, owned summary) loads through a separate HTMX request triggered on load. That request returns the card detail, cached for 24 hours.
 - When a tile's detail fetch succeeds for a card that is already stored locally, the stored card data and variant prices are updated in the same step. This is the automatic price refresh.
-- If a tile's detail request fails, only that tile shows "Details unavailable" with a Retry button. If the search request itself fails, the page shows the provider-unavailable message with a Retry button.
+- If a tile's detail request fails, only that tile shows "Details unavailable" with a countdown to when the circuit breaker closes, then retries by itself; a "Try now" link retries at once. A banner above the results counts the failed tiles, shows the same countdown and offers "Retry all now", which checks TCGdex with one tile and retries the rest only if that works. If the search request itself fails, the page shows the provider-unavailable message with a Retry button.
 - **Stepper:** add, "+" and "−" requests swap only that tile's lower half through HTMX. The returned fragment includes the updated count, the owned-variants summary and a short confirmation. When a wish was fulfilled, the confirmation says so and links to the wishlist page.
 - **Variant dropdown:** changing it re-requests the tile's lower half for that variant, so the price and owned count follow the selection. A card with only one variant has its variant preselected and fixed.
 - Search results do not create Card rows. Rows are created only when a user saves a card to their collection or wishlist.

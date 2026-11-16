@@ -118,7 +118,7 @@ def test_failed_search_shows_unavailable_message_with_a_retry_of_the_same_query(
     assert "We couldn't reach TCGdex" in content
     assert "not a problem on your end" not in content
     assert 'href="?name=pika&amp;page=2"' in content
-    assert ">Retry</a>" in content
+    assert """hx-headers='{"X-User-Retry": "1"}'>Retry</a>""" in content  # a user retry
 
 
 @responses.activate
@@ -223,6 +223,11 @@ def test_card_image_falls_back_to_the_placeholder_when_it_fails_to_load(signed_i
     assert "onerror=" in tile
     assert PLACEHOLDER in tile
     assert placeholder_is_hidden(tile)
+    # A failed image is marked so a retry can ask for it again, and replaces the placeholder
+    # if it loads then.
+    img = re.search(r"<img [^>]*low\.webp[^>]*>", tile).group(0)
+    assert "this.dataset.imgFailed = ''" in img
+    assert "onload=" in img
 
 
 @responses.activate
@@ -291,3 +296,60 @@ def test_chosen_filters_stay_selected_and_are_kept_across_result_pages(signed_in
     assert 'href="?name=pika&amp;set=sv01&amp;rarity=Common&amp;page=2"' in content
     assert '<option value="sv01" selected>' in content
     assert '<option value="Common" selected>' in content
+
+
+@responses.activate
+def test_tiles_load_their_details_separately_and_the_search_fetches_none(signed_in_client):
+    responses.get(CARDS_URL, json=fake_cards(2))
+
+    content = signed_in_client.get(SEARCH_URL, {"name": "pika"}).content.decode()
+
+    tile = tile_html(content, "set1-1")
+    detail_url = reverse("catalog:tile_details", args=["set1-1"])
+    assert f'hx-get="{detail_url}"' in tile
+    assert 'hx-trigger="load"' in tile
+    assert search_calls() == 1
+    assert not any("/cards/set1-" in call.request.url for call in responses.calls)
+    assert 'id="tile-failures"' in content  # the banner failed tiles report to
+
+
+USER_RETRY = {"HTTP_X_USER_RETRY": "1"}
+
+
+@responses.activate
+def test_a_search_retry_reaches_tcgdex_while_the_breaker_is_open(signed_in_client):
+    responses.get(CARDS_URL, status=503)
+    signed_in_client.get(SEARCH_URL, {"name": "pika"})
+    responses.replace(responses.GET, CARDS_URL, json=fake_cards(2))
+
+    automatic = signed_in_client.get(SEARCH_URL, {"name": "pika"})
+    retried = signed_in_client.get(SEARCH_URL, {"name": "pika"}, **USER_RETRY)
+
+    assert "We couldn't reach TCGdex" in automatic.content.decode()
+    assert tile_names(retried) == ["Pikachu 1", "Pikachu 2"]
+    assert search_calls() == 2  # the automatic load failed fast; only the retry asked TCGdex
+
+
+@responses.activate
+def test_a_failed_search_retry_during_an_outage_costs_one_request(signed_in_client):
+    for url in (SERIES_URL, RARITIES_URL):
+        responses.replace(responses.GET, url, status=503)
+    responses.get(CARDS_URL, status=503)
+    signed_in_client.get(SEARCH_URL, {"name": "pika"})
+    before = len(responses.calls)
+
+    response = signed_in_client.get(SEARCH_URL, {"name": "pika"}, **USER_RETRY)
+
+    assert "We couldn't reach TCGdex" in response.content.decode()
+    assert len(responses.calls) == before + 1  # set list, rarities and search: one probe in all
+
+
+@responses.activate
+def test_the_filter_retry_is_a_user_retry(signed_in_client):
+    responses.replace(responses.GET, SERIES_URL, status=503)
+
+    content = signed_in_client.get(SEARCH_URL, {"set": "sv01"}).content.decode()
+
+    start = content.index('role="search"')
+    filters = content[start : content.index("</form>", start)]
+    assert """hx-headers='{"X-User-Retry": "1"}'>Retry</a>""" in filters

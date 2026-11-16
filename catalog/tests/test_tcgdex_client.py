@@ -1,8 +1,10 @@
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 import requests
 import responses
+from django.core.cache.backends import base as base_cache
 from django.core.cache.backends import db as db_cache
 from django.utils import timezone
 
@@ -14,11 +16,19 @@ PIKACHU = [{"id": "base1-58", "localId": "58", "name": "Pikachu", "image": "http
 
 @pytest.fixture
 def advance_clock(monkeypatch):
-    """Move the database cache's clock forward, so cached entries can expire without sleeping."""
+    """Move the clocks forward, so cached entries can expire without sleeping.
+
+    The database cache reads expiry with `tz_now` but writes it with `time.time`, and the client
+    stamps the outage flag with `timezone.now`, so all three move together. Each call moves them to
+    `seconds` after the real time.
+    """
+    start = timezone.now()
 
     def advance(seconds):
-        later = timezone.now() + timedelta(seconds=seconds)
+        later = start + timedelta(seconds=seconds)
         monkeypatch.setattr(db_cache, "tz_now", lambda: later)
+        monkeypatch.setattr(base_cache, "time", SimpleNamespace(time=later.timestamp))
+        monkeypatch.setattr(tcgdex, "timezone", SimpleNamespace(now=lambda: later))
 
     return advance
 
@@ -251,3 +261,39 @@ def test_a_series_detail_that_fails_makes_the_set_groups_unavailable():
 
     with pytest.raises(tcgdex.ProviderUnavailable):
         tcgdex.set_groups()
+
+
+@pytest.mark.django_db
+@responses.activate
+def test_a_user_retry_checks_tcgdex_despite_the_breaker_and_success_closes_it():
+    responses.get(CARDS_URL, status=503)
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.search_cards("pika")
+    responses.replace(responses.GET, CARDS_URL, json=PIKACHU)
+
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.search_cards("char")  # an automatic call still fails fast
+    assert len(responses.calls) == 1
+
+    assert [c["name"] for c in tcgdex.search_cards("char", probe=True)] == ["Pikachu"]
+    assert len(responses.calls) == 2  # the user retry really asked TCGdex
+    assert tcgdex.outage_seconds_left() == 0  # and its success closed the breaker for everyone
+    assert [c["name"] for c in tcgdex.search_cards("bulba")] == ["Pikachu"]
+
+
+@pytest.mark.django_db
+@responses.activate
+def test_a_failed_user_retry_restarts_the_full_breaker_wait(advance_clock):
+    responses.get(CARDS_URL, status=503)
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.search_cards("pika")
+    advance_clock(40)
+
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.search_cards("pika", probe=True)
+
+    assert len(responses.calls) == 2
+    advance_clock(40 + 59)  # 59 s after the failed retry: still open
+    with pytest.raises(tcgdex.ProviderUnavailable):
+        tcgdex.search_cards("pika")
+    assert len(responses.calls) == 2

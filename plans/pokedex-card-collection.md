@@ -26,7 +26,7 @@ Durable decisions that apply across all phases:
   - `/collection/` and `/wishlist/`, with entry actions keyed by pk
   - `/api/collection/` and `/api/wishlist/`, each with list, create, retrieve, partial update and delete
 - **Authentication / authorization**: Django auth views for sign-in, sign-out and password change. Every collection, wishlist, account and card-management view requires sign-in. Every query is scoped to `request.user`, so other users' objects return 404. The API uses DRF Token authentication and Session authentication and rejects unauthenticated requests.
-- **TCGdex boundary**: one client module is the only code that talks to TCGdex. It uses a 3 s connect / 5 s read timeout, no retries, and a 60 s circuit-breaker flag stored in the cache. It raises its own exceptions ("provider unavailable", "not found"), which views and the API turn into user-facing messages or HTTP 503/404 responses.
+- **TCGdex boundary**: one client module is the only code that talks to TCGdex. It uses a 3 s connect / 5 s read timeout, no automatic retries, and a 60 s circuit-breaker flag stored in the cache. A user-requested retry sends one request despite the flag; success clears it. It raises its own exceptions ("provider unavailable", "not found"), which views and the API turn into user-facing messages or HTTP 503/404 responses.
 - **Business rules**: all add/remove/fulfill/restore logic lives in the `collection` services module and is called by both web views and the API.
 
 ---
@@ -81,7 +81,7 @@ Build the TCGdex client (timeouts, circuit breaker, custom exceptions) and a `/s
 - [x] Partial name matches return results with a "N cards found" count and numbered pages.
 - [x] A repeat search with the same filters is served from the cache and makes no network call.
 - [x] An empty search shows the guidance message and makes no TCGdex call.
-- [x] Any failure (timeout, connection error, 5xx, malformed response) sets the 60 s outage flag; while it is set, calls fail immediately without a network request; after it expires, the network is tried again.
+- [x] Any failure (timeout, connection error, 5xx, malformed response) sets the 60 s outage flag; while it is set, automatic calls fail immediately without a network request; after it expires, the network is tried again.
 - [x] A failed search shows the unavailable message and a Retry button that repeats the same query.
 - [x] Tile images use the low-quality webp URL suffix.
 - [x] Tests (with `responses`) cover the circuit breaker, timeout handling, the empty-search rule and pagination of cached ID lists.
@@ -112,16 +112,16 @@ Add a set dropdown grouped by series (newest series first) and an alphabetical r
 
 ### What to build
 
-Each search tile's lower half loads through its own HTMX request to the tile-fragment URL. The response is the card detail, cached for 24 hours, and shows set, rarity, a variant dropdown with only the card's real variants (preselected and fixed when only one exists), and the TCGplayer USD market price for the selected variant or "No price". If one tile's request fails, only that tile shows "Details unavailable" with Retry. Images that fail to load show a placeholder with the card name and number.
+Each search tile's lower half loads through its own HTMX request to the tile-fragment URL. The response is the card detail, cached for 24 hours, and shows set, rarity, a variant dropdown with only the card's real variants (preselected and fixed when only one exists), and the TCGplayer USD market price for the selected variant or "No price". If one tile's request fails, only that tile shows "Details unavailable" with a countdown to when the circuit breaker closes, retries by itself, and offers "Try now". A banner above the results counts the failed tiles and offers "Retry all now" (see `prototypes/tile-failure-retry.html`, option D). Retry buttons are user retries: they send one request even while the breaker is open. Images that fail to load show a placeholder with the card name and number.
 
 ### Acceptance criteria
 
-- [ ] Tiles render image and name first; details fill in afterwards.
-- [ ] The variant dropdown lists only variants that the TCGdex flags allow; a single-variant card is preselected and fixed.
-- [ ] The price matches the selected variant's TCGplayer market price; a missing price shows "No price".
-- [ ] One failing tile shows its own Retry while the other tiles load normally.
-- [ ] A broken image shows the name and number placeholder.
-- [ ] Tests cover variant-flag mapping, price extraction (including missing prices) and per-tile failure.
+- [x] Tiles render image and name first; details fill in afterwards.
+- [x] The variant dropdown lists only variants that the TCGdex flags allow; a single-variant card is preselected and fixed.
+- [x] The price matches the selected variant's TCGplayer market price; a missing price shows "No price".
+- [x] One failing tile shows its own Retry while the other tiles load normally.
+- [x] A broken image shows the name and number placeholder.
+- [x] Tests cover variant-flag mapping, price extraction (including missing prices) and per-tile failure.
 
 ---
 

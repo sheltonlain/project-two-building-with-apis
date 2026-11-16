@@ -2,13 +2,16 @@
 {% comment %}
   A card image with a fallback. Pass `src` (may be empty), `name` and `number`.
   With no `src`, or if the image fails to load, the placeholder card shows instead, with the card's
-  name and number on it.
+  name and number on it. A failed image is marked data-img-failed so a page can ask for it again
+  (the search page does when a tile's details load after a retry); if it then loads, it replaces
+  the placeholder.
 {% endcomment %}
 <div class="card-image relative w-full aspect-[63/88]">
   {% if src %}
     <img src="{{ src }}" alt="{{ name }}" loading="lazy"
          class="w-full h-full object-contain rounded"
-         onerror="this.hidden = true; this.nextElementSibling.hidden = false;">
+         onerror="this.hidden = true; this.dataset.imgFailed = ''; this.nextElementSibling.hidden = false;"
+         onload="this.hidden = false; delete this.dataset.imgFailed; this.nextElementSibling.hidden = true;">
   {% endif %}
   <div class="card-image-placeholder absolute inset-0 rounded overflow-hidden" {% if src %}hidden{% endif %}>
     <img src="{% static 'images/placeholder_image.jfif' %}" alt="" class="w-full h-full object-cover">

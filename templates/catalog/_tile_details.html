@@ -1,0 +1,41 @@
+{% comment %}
+  The lower half of a search tile, swapped in place (outerHTML) by its own HTMX requests.
+  hx-target and hx-indicator are set here because the search page's boosted wrapper would
+  otherwise make tile requests replace the whole results panel and show the search spinner.
+
+  A failed tile retries itself after `retry_delay` seconds, when the circuit breaker closes, or on a
+  `retry` event. "Try now" is a user retry: it checks TCGdex even while the breaker is open, and if
+  that works the page fires `retry` on every other failed tile. The search page's banner counts the
+  tiles marked data-tile-failed, and its "Retry all now" presses the first tile's "Try now".
+{% endcomment %}
+{% url 'catalog:tile_details' card_id as details_url %}
+<div class="tile-details text-sm" hx-target="this" hx-swap="outerHTML" hx-indicator="this"
+     {% if unavailable %}data-tile-failed hx-get="{{ retry_url }}" hx-trigger="load delay:{{ retry_delay }}s, retry"{% endif %}>
+  {% if card %}
+    <p class="opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}</p>
+    {# One variant: shown preselected and fixed. More: changing it reloads this half for that variant. #}
+    <select name="variant" aria-label="Variant" class="select select-bordered select-sm w-full mt-1"
+            {% if card.variants|length == 1 %}disabled{% else %}hx-get="{{ details_url }}" hx-trigger="change"{% endif %}>
+      {% for variant in card.variants %}
+        <option value="{{ variant.code }}"{% if variant.code == selected.code %} selected{% endif %}>{{ variant.label }}</option>
+      {% endfor %}
+    </select>
+    <p class="mt-1 font-semibold">
+      {% if selected.price is not None %}${{ selected.price }}{% else %}<span class="opacity-70">No price</span>{% endif %}
+    </p>
+  {% elif unavailable %}
+    <div class="flex items-center gap-2 mt-1">
+      <span class="loading loading-ring loading-sm text-warning shrink-0" aria-hidden="true"></span>
+      <div>
+        <p class="font-semibold leading-tight">Details unavailable</p>
+        <p class="text-xs opacity-70">
+          <span data-countdown="{{ retry_delay }}">Trying again in {{ retry_delay }}s</span> ·
+          <button type="button" class="link" data-try-now hx-get="{{ retry_url }}"
+                  hx-headers='{"X-User-Retry": "1"}' hx-target="closest .tile-details">Try now</button>
+        </p>
+      </div>
+    </div>
+  {% elif not_found %}
+    <p class="mt-1 opacity-70">TCGdex no longer lists this card's details.</p>
+  {% endif %}
+</div>

@@ -8,4 +8,56 @@
 <div hx-boost="true" hx-target="#search-panel" hx-swap="outerHTML" hx-indicator="#search-indicator">
   {% include "catalog/_search_panel.html" %}
 </div>
+
+<script>
+  // Tiles whose details failed retry themselves (see catalog/_tile_details.html). This script
+  // counts their countdowns down and keeps the banner above the grid in step with them.
+  (() => {
+    const countdowns = () => document.querySelectorAll("[data-tile-failed] [data-countdown]");
+
+    function updateBanner() {
+      const banner = document.getElementById("tile-failures");
+      if (!banner) return;
+      const failed = document.querySelectorAll("[data-tile-failed]").length;
+      banner.hidden = failed === 0;
+      if (!failed) return;
+      const left = Math.max(0, ...[...countdowns()].map((el) => Number(el.dataset.countdown)));
+      banner.querySelector("[data-failed-count]").textContent =
+        `Details for ${failed} card${failed === 1 ? "" : "s"}`;
+      banner.querySelector("[data-countdown-summary]").textContent =
+        left ? `Trying again in ${left}s.` : "Trying again…";
+    }
+
+    setInterval(() => {
+      countdowns().forEach((el) => {
+        const left = Math.max(0, Number(el.dataset.countdown) - 1);
+        el.dataset.countdown = left;
+        el.textContent = left ? `Trying again in ${left}s` : "Trying again…";
+      });
+      updateBanner();
+    }, 1000);
+
+    const retryFailedTiles = () =>
+      document.querySelectorAll("[data-tile-failed]").forEach((tile) => htmx.trigger(tile, "retry"));
+
+    // When a tile's details load, its failed image is worth asking for again too (base.html also
+    // does this for the whole page when the browser comes back online).
+    function retryFailedImages(event) {
+      const details = event.target; // the swapped-in fragment (detail.elt is the old requester)
+      if (!details?.classList?.contains("tile-details") || details.hasAttribute("data-tile-failed")) return;
+      const tile = details.closest("[data-card-id]");
+      if (tile) window.retryCardImages(tile);
+    }
+
+    document.addEventListener("htmx:afterSettle", updateBanner);
+    document.addEventListener("htmx:afterSettle", retryFailedImages);
+    // A user retry ("Try now") reached TCGdex, so the other failed tiles can load now too.
+    document.addEventListener("tcgdex-back", retryFailedTiles);
+    // "Retry all now" checks TCGdex with one tile first; the rest follow only if that works.
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-retry-all]")) return;
+      document.querySelector("[data-tile-failed] [data-try-now]")?.click();
+    });
+  })();
+</script>
 {% endblock %}

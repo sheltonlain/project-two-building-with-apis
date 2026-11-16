@@ -45,5 +45,21 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    // Card images that failed to load (offline, or the image server was down) sit hidden behind a
+    // placeholder; see includes/card_image.html. Ask for them again when the connection comes
+    // back, when a page is restored from history, or when a page calls this after a retry worked.
+    window.retryCardImages = (root = document) => {
+      root.querySelectorAll("img[data-img-failed]").forEach((img) => {
+        const src = img.getAttribute("src");
+        img.loading = "eager"; // browsers never load a hidden lazy image
+        img.removeAttribute("src");
+        img.setAttribute("src", src);
+      });
+    };
+    window.addEventListener("online", () => window.retryCardImages());
+    document.addEventListener("htmx:historyRestore", () => window.retryCardImages());
+  </script>
 </body>
 </html>
