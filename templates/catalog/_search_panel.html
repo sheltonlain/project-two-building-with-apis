@@ -68,11 +68,15 @@
       <ul class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {% for card in page.object_list %}
           <li class="card bg-base-100 shadow-sm" data-card-id="{{ card.id }}">
+            {# The image and name open the card's page as a full page load, not a swap into the panel. #}
+            {% url 'catalog:card_detail' card.id as card_url %}
             <figure class="px-3 pt-3">
-              {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+              <a href="{{ card_url }}" hx-boost="false" class="block w-full" tabindex="-1" aria-hidden="true">
+                {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+              </a>
             </figure>
             <div class="card-body p-3">
-              <h2 class="card-title text-base">{{ card.name }}</h2>
+              <h2 class="card-title text-base"><a href="{{ card_url }}" hx-boost="false" class="link link-hover">{{ card.name }}</a></h2>
               {# Image and name show at once; the rest loads per tile (catalog/_tile_details.html). #}
               <div class="tile-details text-sm" hx-get="{% url 'catalog:tile_details' card.id %}"
                    hx-trigger="load" hx-target="this" hx-swap="outerHTML" hx-indicator="this">

@@ -28,6 +28,37 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented UI improvements Phase 3: card detail page
+
+### Prompts
+1. `/implement @prd/ui-improvements.md @plans/ui-improvements.md Implement phase 3`
+2. "I do not want to display any errors, only friendly user messages" (reply to the three proposed TDD behaviors; taken as approval with the not-found page reworded)
+3. "go ahead" (approved the cycle 1 test: the page shows the card and every variant's price and date)
+4. "go ahead" (moved on to cycle 2)
+5. "go ahead" (approved the cycle 2 test: a stored card is shown during an outage)
+6. "go ahead" (moved on to cycle 3)
+7. "yes" (approved the cycle 3 test: an unknown card gets a friendly not-found page)
+8. "go ahead" (build the rest of the phase normally)
+9. "manual verification passed, but the card detail page looks ood. It should mirror what the card looks like on the collection page with the card displayed on the left. The card name should be at the top, followed by the set and rarity, the price, total value of the card if it is in your collection, your notes, and the number of cards owned"
+10. "This is an improvement, but the spacing looks very awkward. Try making the font bigger and spacing elements out more so they are not bunched together. Also try giving the variant badge a color."
+11. "Let'd do a different badge color for each variant. You can choose the colors. Put more space between the total value, the note, and the number of cards owned."
+12. "That looks a lot better. One issue I did notice -- after clicking a card detail page and going back, the search page does not load up correctly. The stylizing is gone, and all of the cards are in a big vertical list"
+13. "that fixed it, go ahead and verify the acceptance criteria"
+14. "both" (add both suggested lines to CLAUDE.md)
+15. "yes, update PROMPTS then commit and push"
+
+### Summary
+- **Outcome:** Added the card detail page at `/card/<card_id>/` (`catalog:card_detail`). It shows a large image, the name, set, rarity and number, and one box per variant with a colored badge, the price and its "as of" date. For variants the user owns, it also shows the total value, the collection note and the owned count, all read-only for now. When TCGdex is down, a stored card is shown from the database with a note that prices may be out of date. A card that isn't stored shows a friendly message with a countdown, an automatic retry and a Retry button. An unknown card ID shows a friendly "We couldn't find that card" page that still returns HTTP 404. Search tile images and names now link to the page as full page loads. The helper for a price's "as of" date became public (`services.price_time`), `Card.as_detail()` now includes each variant's price date, and a new `services.owned_entries()` was added. Three behaviors were built test-first. All 215 tests pass, and every Phase 3 criterion is ticked. CLAUDE.md gained two lines: one on the HTMX caching middleware and one on the detail page's fallback to the stored card.
+- **Deviations:**
+  - The user asked for friendly messages only, with no error pages. The not-found case became a styled page that keeps the 404 status behind the scenes.
+  - The user rejected the first layout and asked for one that mirrors a collection entry. It now shows owned count, total value and notes read-only, ahead of Phases 4 and 5, which add the buttons and note editing.
+  - Two more rounds of visual changes followed: bigger text, more spacing, a separate badge color for each variant (Claude chose the colors), and more space between Total Value, the note and the owned count.
+- **Sideways:**
+  - Two TDD tests first failed on uncaught exceptions rather than assertions. Minimal scaffolding was added before they counted as RED.
+  - Python edit scripts used Windows' default cp1252 encoding, which corrupted `…` in the two new templates and broke every page test. This was caught by the test run and repaired byte-safe. After that, all edits passed `encoding="utf-8"`.
+  - A string replacement matched more than one `{% endif %}` and duplicated the outage block in the template. It was spotted on review and the partial was rewritten cleanly.
+  - The user found that pressing Back from a card page showed the search page unstyled, as a vertical list. The cause was that the browser reused the cached HTMX fragment for the search URL. This is fixed by `pokedex/middleware.py`, which adds `Vary: HX-Request` and never caches fragments, with a regression test (`catalog/tests/test_htmx_caching.py`). The user confirmed the fix.
+
 ## 2026-11-16 — Implemented UI improvements Phase 2: typeable Set and Rarity filters
 
 ### Prompts

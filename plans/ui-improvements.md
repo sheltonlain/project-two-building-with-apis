@@ -85,12 +85,12 @@ Search tiles link the image and name to this page (links keep `hx-boost="false"`
 
 ### Acceptance criteria
 
-- [ ] Signed-in users see the card's image, name, number, set, rarity and per-variant prices and dates. Signed-out users are redirected to sign in with `next`.
-- [ ] A stored card is shown from the database when TCGdex is down, with the out-of-date note.
-- [ ] An unstored card shows the unavailable message with a countdown and Retry when TCGdex is down.
-- [ ] An unknown ID returns 404 with a friendly page.
-- [ ] Search tile images and names open the detail page as a full page load. Tile buttons still work in place.
-- [ ] Tests fake TCGdex for the success, outage (stored and unstored) and not-found cases.
+- [x] Signed-in users see the card's image, name, number, set, rarity and per-variant prices and dates. Signed-out users are redirected to sign in with `next`.
+- [x] A stored card is shown from the database when TCGdex is down, with the out-of-date note.
+- [x] An unstored card shows the unavailable message with a countdown and Retry when TCGdex is down.
+- [x] An unknown ID returns 404 with a friendly page.
+- [x] Search tile images and names open the detail page as a full page load. Tile buttons still work in place.
+- [x] Tests fake TCGdex for the success, outage (stored and unstored) and not-found cases.
 
 ---
 

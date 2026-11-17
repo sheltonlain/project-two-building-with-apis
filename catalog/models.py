@@ -42,7 +42,12 @@ class Card(models.Model):
             "image": self.image or None,
             "tile_image": self.tile_image,
             "variants": [
-                {"code": v.variant, "label": v.get_variant_display(), "price": v.market_price}
+                {
+                    "code": v.variant,
+                    "label": v.get_variant_display(),
+                    "price": v.market_price,
+                    "price_updated": v.price_updated,
+                }
                 for v in self.sorted_variants()
             ],
         }

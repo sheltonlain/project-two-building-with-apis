@@ -38,6 +38,8 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - When TCGplayer has no price date, the "as of" date is when the card was fetched.
 - Demo data: `manage.py seed_demo` creates users `demo` and `misty`, password `pokedex-demo` (DEBUG only).
 - HTMX views return a fragment for HTMX requests but a full page for history-restore requests, and swapped fragments include any form inputs whose values should survive the Back button.
+- HTMX fragment responses carry `Vary: HX-Request` and are never cached (`pokedex/middleware.py`), so Back never shows a bare fragment.
+- The card detail page falls back to the stored Card (`Card.as_detail()`) when TCGdex is down.
 
 ## References
 

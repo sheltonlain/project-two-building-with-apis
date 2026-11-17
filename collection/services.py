@@ -32,7 +32,7 @@ def get_or_create_card(card_id, probe=False):
 
 
 def _store_card(detail):
-    updated = _price_time(detail)
+    updated = price_time(detail)
     with transaction.atomic():
         card, created = Card.objects.get_or_create(
             tcgdex_id=detail["id"],
@@ -65,7 +65,7 @@ def refresh_stored_card(detail):
     card = Card.objects.filter(tcgdex_id=detail["id"]).first()
     if card is None:
         return None
-    updated = _price_time(detail)
+    updated = price_time(detail)
     with transaction.atomic():
         card.name = detail["name"]
         card.set_id = detail["set_id"]
@@ -101,7 +101,7 @@ def refresh_card(card_id, probe=False):
     refresh_stored_card(detail)
 
 
-def _price_time(detail):
+def price_time(detail):
     """When a card detail's prices are from: TCGplayer's timestamp, else when the detail was
     fetched (it may come from the cache), else now."""
     return (
@@ -220,6 +220,12 @@ def owned_quantities(user, card_id):
     """{variant code: quantity} for the variants of one card that the user owns."""
     rows = OwnedCard.objects.filter(user=user, variant__card__tcgdex_id=card_id)
     return dict(rows.values_list("variant__variant", "quantity"))
+
+
+def owned_entries(user, card_id):
+    """{variant code: OwnedCard} for the variants of one card that the user owns."""
+    rows = OwnedCard.objects.filter(user=user, variant__card__tcgdex_id=card_id)
+    return {entry.variant.variant: entry for entry in rows.select_related("variant")}
 
 
 def restore_wish(owned):

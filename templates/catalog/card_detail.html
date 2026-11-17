@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ card.name|default:"Card" }}{% endblock %}
+{% block content %}
+{% include "catalog/_card_page.html" %}
+
+<script>
+  // A card that couldn't load retries itself (see catalog/_card_page.html); count down to it.
+  setInterval(() => {
+    document.querySelectorAll("[data-retry-countdown]").forEach((el) => {
+      const left = Math.max(0, Number(el.dataset.retryCountdown) - 1);
+      el.dataset.retryCountdown = left;
+      el.textContent = left ? `Trying again in ${left}s…` : "Trying again…";
+    });
+  }, 1000);
+</script>
+{% endblock %}

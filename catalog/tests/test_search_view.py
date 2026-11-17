@@ -133,6 +133,21 @@ def test_tiles_show_name_and_low_quality_webp_image(signed_in_client):
 
 
 @responses.activate
+def test_tile_image_and_name_open_the_card_page_as_a_full_page_load(signed_in_client):
+    responses.get(CARDS_URL, json=fake_cards(1))
+
+    content = signed_in_client.get(SEARCH_URL, {"name": "pika"}).content.decode()
+
+    card_url = reverse("catalog:card_detail", args=["set1-1"])
+    links = re.findall(rf'<a href="{re.escape(card_url)}"[^>]*>', content)
+    assert len(links) == 2  # the image and the name
+    assert all('hx-boost="false"' in link for link in links)  # not swapped into the panel
+    assert re.search(rf'<a href="{re.escape(card_url)}"[^>]*>Pikachu 1</a>', content)
+    # The tile's details (and their buttons) load separately, outside the links.
+    assert f'hx-get="{reverse("catalog:tile_details", args=["set1-1"])}"' in content
+
+
+@responses.activate
 def test_numbered_page_links_keep_the_search(signed_in_client):
     responses.get(CARDS_URL, json=fake_cards(50))
 

@@ -1,0 +1,77 @@
+{% comment %}
+  The card detail page's body. A failed load (TCGdex down and the card not stored) swaps this
+  whole fragment when its countdown ends or Retry is pressed.
+{% endcomment %}
+<div id="card-page">
+  {% if not_found %}
+    <div class="hero bg-base-100 rounded-box shadow py-12">
+      <div class="hero-content text-center">
+        <div class="max-w-md">
+          <h1 class="text-3xl font-bold">We couldn't find that card</h1>
+          <p class="py-4">TCGdex, the card database, doesn't list a card with that ID. The link may be mistyped or out of date. Try searching for the card by name instead.</p>
+          <a href="{% url 'catalog:search' %}" class="btn btn-primary">Search cards</a>
+        </div>
+      </div>
+    </div>
+  {% elif card %}
+    {# Laid out like a collection entry (collection/_entry.html), with one block per variant. #}
+    <article class="card sm:card-side bg-base-100 shadow-sm">
+      <figure class="w-full sm:w-72 md:w-80 shrink-0 p-6 items-start">
+        {% include "includes/card_image.html" with src=card.image_large name=card.name number=card.local_id %}
+      </figure>
+      <div class="card-body p-6 sm:pl-2 gap-6 min-w-0 text-base">
+        <header class="space-y-2">
+          <h1 class="card-title text-4xl">{{ card.name }}</h1>
+          <p class="text-lg opacity-70">
+            {{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}{% if card.local_id %} · #{{ card.local_id }}{% endif %}
+          </p>
+        </header>
+
+        {% if stale %}
+          <div role="status" class="alert alert-warning">
+            <span>We couldn't reach TCGdex, the card database, so this is the copy saved in the app and prices may be out of date. Reload in a minute for current prices.</span>
+          </div>
+        {% endif %}
+
+        <ul class="space-y-4">
+          {% for variant in variants %}
+            <li class="rounded-box border border-base-300 p-5 flex flex-col gap-5">
+              {# Each variant has its own badge color. Full class names, so Tailwind keeps them. #}
+              <p><span class="badge badge-lg {% if variant.code == 'normal' %}badge-neutral{% elif variant.code == 'reverse' %}badge-info{% elif variant.code == 'holo' %}badge-secondary{% elif variant.code == 'first_edition' %}badge-warning{% else %}badge-accent{% endif %}">{{ variant.label }}</span></p>
+              {% if variant.price is not None %}
+                <p>
+                  <span class="text-2xl font-semibold">${{ variant.price }}</span> each
+                  {% if variant.price_updated %}<span class="text-sm opacity-70 ml-1">as of {{ variant.price_updated|date:"M j, Y" }}</span>{% endif %}
+                </p>
+                {% if variant.value is not None %}<p class="text-lg">Total Value: <span class="font-semibold">${{ variant.value|floatformat:"2g" }}</span></p>{% endif %}
+              {% else %}
+                <p class="text-lg opacity-70">No price</p>
+              {% endif %}
+              {% if variant.entry %}
+                {% if variant.entry.notes %}
+                  <p class="italic opacity-80 break-words whitespace-pre-line border-l-4 border-base-300 pl-3">{{ variant.entry.notes }}</p>
+                {% endif %}
+                <p><span class="inline-flex items-center px-4 h-10 border border-base-300 rounded-field font-semibold">{{ variant.entry.quantity }} owned</span></p>
+              {% else %}
+                <p class="opacity-70">Not in your collection</p>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="text-sm opacity-70">TCGplayer market prices, USD</p>
+      </div>
+    </article>
+  {% elif unavailable %}
+    {# Not stored in the app either, so there's nothing to show until TCGdex answers. #}
+    <div role="status" class="alert alert-warning">
+      <span class="loading loading-ring loading-sm shrink-0" aria-hidden="true"></span>
+      <span>We couldn't load this card because TCGdex, the card database, didn't respond. Check your internet connection, or try again in a minute.
+        <span data-retry-countdown="{{ retry_delay }}">Trying again in {{ retry_delay }}s…</span></span>
+      <button type="button" class="btn btn-sm" hx-get="{{ request.path }}" hx-headers='{"X-User-Retry": "1"}'
+              hx-target="#card-page" hx-swap="outerHTML">Retry</button>
+    </div>
+    {# An ordinary request, not a user retry, so it never probes an open breaker. #}
+    <div hidden hx-get="{{ request.path }}" hx-trigger="load delay:{{ retry_delay }}s"
+         hx-target="#card-page" hx-swap="outerHTML"></div>
+  {% endif %}
+</div>

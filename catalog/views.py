@@ -238,3 +238,66 @@ class TileWishView(TileActionView):
             else:
                 context["notice"] = f"{label} is already on your wishlist."
             context["update_nav"] = True
+
+
+class CardDetailView(LoginRequiredMixin, TemplateView):
+    """One card's page: a large image, its name, number, set and rarity, and every variant."""
+
+    template_name = "catalog/card_detail.html"
+
+    def is_fragment_request(self):
+        """Retrying a card that couldn't load swaps just the page body."""
+        headers = self.request.headers
+        return headers.get("HX-Request") and not headers.get("HX-History-Restore-Request")
+
+    def get_template_names(self):
+        if self.is_fragment_request():
+            return ["catalog/_card_page.html"]
+        return [self.template_name]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        card_id = self.kwargs["card_id"]
+        try:
+            card = TCGdexCaller(self.request)(tcgdex.card_detail, card_id)
+        except tcgdex.NotFound:
+            context["not_found"] = True
+            return context
+        except tcgdex.ProviderUnavailable:
+            # A card someone saved can still be shown, with the prices last stored for it.
+            stored = Card.objects.filter(tcgdex_id=card_id).first()
+            if stored is None:
+                context["unavailable"] = True
+                context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(
+                    0, RETRY_SPREAD
+                )
+                return context
+            card = stored.as_detail()
+            context["stale"] = True
+        else:
+            services.refresh_stored_card(card)  # the automatic price refresh for saved cards
+            # Every variant's price is from the same TCGplayer update.
+            updated = services.price_time(card)
+            card = {**card, "variants": [{**v, "price_updated": updated} for v in card["variants"]]}
+        context["card"] = {**card, "image_large": tcgdex.image_url(card["image"], "high")}
+        context["variants"] = self.with_owned(card["variants"], card_id)
+        return context
+
+    def with_owned(self, variants, card_id):
+        """Each variant with the user's entry for it (or None) and that entry's total value."""
+        entries = services.owned_entries(self.request.user, card_id)
+        rows = []
+        for variant in variants:
+            entry = entries.get(variant["code"])
+            value = None
+            if entry is not None and variant["price"] is not None:
+                value = variant["price"] * entry.quantity
+            rows.append({**variant, "entry": entry, "value": value})
+        return rows
+
+    def render_to_response(self, context, **kwargs):
+        if context.get("not_found") and not self.is_fragment_request():
+            # A friendly page, but still "no such card" to browsers. A retry's fragment stays
+            # 200 so HTMX swaps the message in.
+            kwargs["status"] = 404
+        return super().render_to_response(context, **kwargs)
