@@ -231,10 +231,10 @@ Give the wishlist page the same controls as the collection: a name/notes search,
 
 ### Acceptance criteria
 
-- [ ] The variant filter lists only variants the user has wished for.
-- [ ] Price sort puts wishes for unpriced variants last.
-- [ ] Filters and sort are kept across pages.
-- [ ] Tests cover the variant filter and option scoping.
+- [x] The variant filter lists only variants the user has wished for.
+- [x] Price sort puts wishes for unpriced variants last.
+- [x] Filters and sort are kept across pages.
+- [x] Tests cover the variant filter and option scoping.
 
 ---
 

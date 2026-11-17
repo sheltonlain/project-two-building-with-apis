@@ -1,7 +1,9 @@
 {% comment %}
-  The wishlist's lists: fulfilled wishes waiting to be dismissed, then active wishes. Got it, Keep
-  and OK swap this whole body so the wish shows up in its new place. `notice` and `error` are
-  shown on the wish whose pk is `notice_pk`, or above the lists when that wish is gone (OK).
+  The wishlist's lists: fulfilled wishes waiting to be dismissed (filtered, but always most
+  recently fulfilled first), then a page of active wishes (filtered and sorted). Got it, Keep and
+  OK swap this whole body so the wish shows up in its new place. `notice` and `error` are shown on
+  the wish whose pk is `notice_pk`, or above the lists when that wish is gone (OK). Pagination
+  links build on `query`, the wishlist page's query string, so they keep the filters and sort.
 {% endcomment %}
 <div id="wishlist-body">
 {% if notice and not notice_pk %}
@@ -22,10 +24,10 @@
     </div>
   </section>
 {% endif %}
-{% if wishes %}
-  <p class="mb-4 font-semibold">{{ wishes|length }} wish{{ wishes|length|pluralize:"es" }}</p>
+{% if page.object_list %}
+  <p class="mb-4 font-semibold">{{ page.paginator.count }} wish{{ page.paginator.count|pluralize:"es" }}{% if filtered %} match{{ page.paginator.count|pluralize:"es," }}{% endif %}</p>
   <div class="grid gap-4 sm:grid-cols-2">
-    {% for wish in wishes %}
+    {% for wish in page.object_list %}
       {% if wish.pk == notice_pk %}
         {% include "collection/_wish.html" %}
       {% else %}
@@ -33,10 +35,26 @@
       {% endif %}
     {% endfor %}
   </div>
-{% elif not fulfilled %}
+
+  {% if page.paginator.num_pages > 1 %}
+    <nav class="join mt-6 flex flex-wrap justify-center" aria-label="Wishlist pages">
+      {% for number in page_range %}
+        {% if number == page.paginator.ELLIPSIS %}
+          <span class="join-item btn btn-sm btn-disabled">…</span>
+        {% elif number == page.number %}
+          <span class="join-item btn btn-sm btn-active" aria-current="page">{{ number }}</span>
+        {% else %}
+          <a href="{% url 'collection:wishlist' %}{% querystring query page=number %}" class="join-item btn btn-sm">{{ number }}</a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  {% endif %}
+{% elif not has_wishes %}
   <div class="alert">
     <span>Your wishlist is empty. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> and add the ones you want.</span>
   </div>
+{% elif filtered %}
+  <p class="opacity-70">No {% if fulfilled %}active {% endif %}wishes match these filters. Try a shorter search or fewer filters.</p>
 {% else %}
   <p class="opacity-70">No active wishes. <a href="{% url 'catalog:search' %}" class="link">Search for cards</a> to wish for more.</p>
 {% endif %}

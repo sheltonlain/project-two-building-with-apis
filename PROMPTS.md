@@ -28,6 +28,34 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented Phase 11: wishlist search, filter, sort and pagination
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 11`
+2. "yes, go ahead with both" (approved the two TDD behaviors: price sort puts unpriced wishes
+   last, and filter options come only from the user's own wishes)
+3. "Yes" (approved behavior 1's test)
+4. "yes" (move on to behavior 2)
+5. "Any fulfilled but not dismissed cards should not be sorted."
+6. "A" (fulfilled wishes are filtered but not sorted, so their values count toward the
+   dropdowns; approved behavior 2's test as written)
+7. "Proceed" (build the rest of the phase)
+8. "verified, all steps work"
+9. "Yes, update CLAUDE.md and PROMPTS.md"
+
+### Summary
+- **Outcome:** The wishlist page got the collection's controls: a name/notes search, set, rarity
+  and variant dropdowns drawn from the user's own wishes, a sort by date added, name or price
+  (unpriced last), and 24-per-page numbered pagination that keeps the query string. Search and
+  filters also narrow the Got it section, which always stays most recently fulfilled first. Got
+  it, Keep and OK read the page's URL so the redrawn list keeps its filters, sort and page. The
+  collection's filter, sort and dropdown code became shared helpers in the services module. Two
+  behaviors were built test-first; 177 tests pass.
+- **Deviations:** none from the recommendations. The user added that fulfilled wishes must not
+  be sorted, and when asked whether that also meant unfiltered, chose filtered but not sorted.
+- **Sideways:** one Phase 10 test failed after the wish count line was split across template
+  lines; the template was put back on one line instead of changing the test.
+
 ## 2026-11-16 — Implemented Phase 10: wish fulfillment
 
 ### Prompts

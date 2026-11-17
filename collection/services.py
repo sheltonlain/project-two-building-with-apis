@@ -223,7 +223,22 @@ def collection_entries(
     are exact matches. `ordering` is a key of COLLECTION_SORT_FIELDS, "-" first for descending;
     unknown keys fall back to newest first.
     """
-    entries = OwnedCard.objects.filter(user=user)
+    entries = _filter_entries(OwnedCard.objects.filter(user=user), search, set_id, rarity, variant)
+    return (
+        entries.select_related("variant__card")
+        .annotate(
+            value=ExpressionWrapper(
+                F("quantity") * F("variant__market_price"),
+                output_field=DecimalField(max_digits=14, decimal_places=2),
+            )
+        )
+        .order_by(_sort(COLLECTION_SORT_FIELDS, ordering), "-created", "-pk")
+    )
+
+
+def _filter_entries(entries, search, set_id, rarity, variant):
+    """Filter OwnedCard or Wish rows: `search` matches the card name or the notes, ignoring
+    case; `set_id`, `rarity` and `variant` are exact matches."""
     if search:
         entries = entries.filter(
             Q(variant__card__name__icontains=search) | Q(notes__icontains=search)
@@ -234,22 +249,60 @@ def collection_entries(
         entries = entries.filter(variant__card__rarity=rarity)
     if variant:
         entries = entries.filter(variant__variant=variant)
-    sort_field = COLLECTION_SORT_FIELDS.get(ordering.removeprefix("-"))
+    return entries
+
+
+def _sort(sort_fields, ordering):
+    """The order_by expression for a sort key ("-" first for descending); unknown keys mean
+    newest first. Empty values (no price) go last in both directions."""
+    sort_field = sort_fields.get(ordering.removeprefix("-"))
     if sort_field is None:
-        ordering, sort_field = DEFAULT_ORDERING, COLLECTION_SORT_FIELDS["added"]
-    # Unpriced entries go last in both directions; newest first breaks ties.
+        ordering, sort_field = DEFAULT_ORDERING, sort_fields["added"]
     sort = F(sort_field)
-    sort = sort.desc(nulls_last=True) if ordering.startswith("-") else sort.asc(nulls_last=True)
-    return (
-        entries.select_related("variant__card")
-        .annotate(
-            value=ExpressionWrapper(
-                F("quantity") * F("variant__market_price"),
-                output_field=DecimalField(max_digits=14, decimal_places=2),
-            )
-        )
-        .order_by(sort, "-created", "-pk")
+    return sort.desc(nulls_last=True) if ordering.startswith("-") else sort.asc(nulls_last=True)
+
+
+# Wishlist sort keys (prefix "-" for descending) and the field each one sorts on.
+WISH_SORT_FIELDS = {
+    "name": "variant__card__name",
+    "price": "variant__market_price",
+    "added": "created",
+}
+
+
+def wish_entries(user, search="", set_id="", rarity="", variant="", ordering=DEFAULT_ORDERING):
+    """The user's active wishes, filtered like collection_entries(). `ordering` is a key of
+    WISH_SORT_FIELDS, "-" first for descending; unknown keys fall back to newest first."""
+    wishes = _filter_entries(active_wishes(user), search, set_id, rarity, variant)
+    return wishes.order_by(_sort(WISH_SORT_FIELDS, ordering), "-created", "-pk")
+
+
+def fulfilled_wish_entries(user, search="", set_id="", rarity="", variant=""):
+    """The user's fulfilled wishes awaiting dismissal, filtered like collection_entries(), most
+    recently fulfilled first."""
+    return _filter_entries(fulfilled_wishes(user), search, set_id, rarity, variant)
+
+
+def wishlist_filter_options(user):
+    """The filter choices for the user's wishlist, drawn only from their own wishes (active and
+    fulfilled), in the same shape as collection_filter_options()."""
+    return _filter_options(
+        Card.objects.filter(variants__wishes__user=user),
+        CardVariant.objects.filter(wishes__user=user),
     )
+
+
+def _filter_options(cards, card_variants):
+    """Set, rarity and variant filter choices from the given Card and CardVariant rows."""
+    cards = cards.distinct()
+    sets = cards.order_by("set_name", "set_id").values_list("set_id", "set_name").distinct()
+    rarities = cards.exclude(rarity="").order_by("rarity").values_list("rarity", flat=True)
+    codes = set(card_variants.values_list("variant", flat=True).distinct())
+    return {
+        "sets": list(sets),
+        "rarities": list(rarities.distinct()),
+        "variants": [(code, label) for code, label in CardVariant.Variant.choices if code in codes],
+    }
 
 
 def delete_entry(owned):
@@ -322,17 +375,10 @@ def undo_removal(user, record):
 def collection_filter_options(user):
     """The filter choices for the user's collection, drawn only from their own rows:
     {"sets": [(set ID, set name)], "rarities": [rarity], "variants": [(code, label)]}."""
-    cards = Card.objects.filter(variants__owned__user=user).distinct()
-    sets = cards.order_by("set_name", "set_id").values_list("set_id", "set_name").distinct()
-    rarities = cards.exclude(rarity="").order_by("rarity").values_list("rarity", flat=True)
-    codes = set(
-        CardVariant.objects.filter(owned__user=user).values_list("variant", flat=True).distinct()
+    return _filter_options(
+        Card.objects.filter(variants__owned__user=user),
+        CardVariant.objects.filter(owned__user=user),
     )
-    return {
-        "sets": list(sets),
-        "rarities": list(rarities.distinct()),
-        "variants": [(code, label) for code, label in CardVariant.Variant.choices if code in codes],
-    }
 
 
 def keep_wish(wish):

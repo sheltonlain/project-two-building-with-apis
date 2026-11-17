@@ -2,5 +2,51 @@
 {% block title %}My wishlist{% endblock %}
 {% block content %}
 <h1 class="text-3xl font-bold mb-4">My wishlist</h1>
+{% if has_wishes %}
+  {# A plain GET form: the filters and sort live in the query string, so pages keep them. #}
+  <form method="get" action="{% url 'collection:wishlist' %}" class="flex flex-wrap items-end gap-2 mb-4" role="search">
+    <label class="form-control grow">
+      <span class="label-text mb-1">Search names and notes</span>
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="e.g. pika or trade" class="input input-bordered w-full">
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Set</span>
+      <select name="set" class="select select-bordered">
+        <option value="">Any set</option>
+        {% for set_id, set_name in options.sets %}
+          <option value="{{ set_id }}"{% if set_id == filters.set %} selected{% endif %}>{{ set_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Rarity</span>
+      <select name="rarity" class="select select-bordered">
+        <option value="">Any rarity</option>
+        {% for rarity in options.rarities %}
+          <option value="{{ rarity }}"{% if rarity == filters.rarity %} selected{% endif %}>{{ rarity }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Variant</span>
+      <select name="variant" class="select select-bordered">
+        <option value="">Any variant</option>
+        {% for code, label in options.variants %}
+          <option value="{{ code }}"{% if code == filters.variant %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form-control">
+      <span class="label-text mb-1">Sort by</span>
+      <select name="sort" class="select select-bordered">
+        {% for key, label in sorts %}
+          <option value="{{ key }}"{% if key == filters.sort %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary">Apply</button>
+    {% if filtered %}<a href="{% url 'collection:wishlist' %}{% if filters.sort != '-added' %}?sort={{ filters.sort|urlencode }}{% endif %}" class="btn btn-ghost">Clear filters</a>{% endif %}
+  </form>
+{% endif %}
 {% include "collection/_wishlist_body.html" %}
 {% endblock %}

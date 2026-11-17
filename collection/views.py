@@ -235,16 +235,57 @@ class EntryUndoView(EntryActionView):
         return self.respond(context)
 
 
+# (ordering key for services.wish_entries, label), in the order the dropdown shows them.
+WISHLIST_SORTS = [
+    ("-added", "Newest first"),
+    ("added", "Oldest first"),
+    ("name", "Name, A–Z"),
+    ("-name", "Name, Z–A"),
+    ("-price", "Price, high to low"),
+    ("price", "Price, low to high"),
+]
+
+
+def wishlist_listing(user, query):
+    """The wishlist page's context for a query string: its filters, the filtered fulfilled wishes
+    (always most recently fulfilled first) and a page of the filtered, sorted active wishes."""
+    filters = {key: query.get(key, "").strip() for key in COLLECTION_FILTERS}
+    if filters["sort"] not in dict(WISHLIST_SORTS):
+        filters["sort"] = services.DEFAULT_ORDERING
+    criteria = {
+        "search": filters["q"],
+        "set_id": filters["set"],
+        "rarity": filters["rarity"],
+        "variant": filters["variant"],
+    }
+    wishes = services.wish_entries(user, ordering=filters["sort"], **criteria)
+    page = Paginator(wishes, PAGE_SIZE).get_page(query.get("page"))
+    return {
+        "filters": filters,
+        "filtered": any(criteria.values()),
+        # What pagination links build on; for an action, the wishlist page's own query string.
+        "query": query,
+        "fulfilled": services.fulfilled_wish_entries(user, **criteria),
+        "page": page,
+        "page_range": page.paginator.get_elided_page_range(page.number),
+        "has_wishes": services.active_wishes(user).exists()
+        or services.fulfilled_wishes(user).exists(),
+    }
+
+
 class WishlistView(LoginRequiredMixin, TemplateView):
     """The user's fulfilled wishes waiting to be dismissed, then their active wishes, newest
-    first. Local data only, so it works while TCGdex is down."""
+    first, with search, filters, sort and pagination. Local data only, so it works while TCGdex
+    is down."""
 
     template_name = "collection/wishlist.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["fulfilled"] = services.fulfilled_wishes(self.request.user)
-        context["wishes"] = services.active_wishes(self.request.user)
+        user = self.request.user
+        context.update(wishlist_listing(user, self.request.GET))
+        context["options"] = services.wishlist_filter_options(user)
+        context["sorts"] = WISHLIST_SORTS
         return context
 
 
@@ -306,7 +347,8 @@ class WishUndoView(WishActionView):
 class WishMoveView(WishActionView):
     """Base for the wish actions that move a wish between the Got it section and the active list
     (Got it, Keep, OK). HTMX requests get the whole wishlist body back, so the wish shows up in
-    its new place.
+    its new place. The body keeps the page's search, filters, sort and page, read from HTMX's
+    HX-Current-URL header.
 
     `act` returns (wish to show the notice on, or None for a notice above the lists, notice,
     error).
@@ -316,15 +358,11 @@ class WishMoveView(WishActionView):
 
     def post(self, request, pk):
         notice_pk, notice, error = self.act(request.user, pk)
-        return self.respond(
-            {
-                "fulfilled": services.fulfilled_wishes(request.user),
-                "wishes": services.active_wishes(request.user),
-                "notice_pk": notice_pk,
-                "notice": notice,
-                "error": error,
-            }
-        )
+        url = urlsplit(request.headers.get("HX-Current-URL", ""))
+        query = QueryDict(url.query if url.path == reverse("collection:wishlist") else "")
+        context = wishlist_listing(request.user, query)
+        context.update({"notice_pk": notice_pk, "notice": notice, "error": error})
+        return self.respond(context)
 
     def act(self, user, pk):
         raise NotImplementedError
