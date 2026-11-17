@@ -79,6 +79,57 @@ class CollectionView(LoginRequiredMixin, TemplateView):
         return context
 
 
+class RefreshPricesView(LoginRequiredMixin, TemplateView):
+    """Refresh prices: fetch every card the user owns from TCGdex, one card per request.
+
+    The button posts without `step` and gets the first progress message back; each progress
+    message posts the next `step` (an index into services.owned_card_ids()) as soon as it loads,
+    so the page reports "Refreshing 12 of 40…" as it goes.
+
+    If TCGdex fails, the refresh stops there and offers Try again, a user retry from that card;
+    cards not yet refreshed keep their saved prices.
+    """
+
+    http_method_names = ["post"]
+    template_name = "collection/_refresh_prices.html"
+
+    def post(self, request):
+        card_ids = services.owned_card_ids(request.user)
+        total = len(card_ids)
+        try:
+            step = int(request.POST["step"])
+        except KeyError, ValueError:
+            next_step = 0
+        else:
+            if 0 <= step < total:
+                probe = request.headers.get("X-User-Retry") == "1"
+                try:
+                    services.refresh_card(card_ids[step], probe=probe)
+                except tcgdex.ProviderUnavailable:
+                    return self.finish({"total": total, "failed_step": step})
+            next_step = step + 1
+        if next_step < total:
+            context = {"total": total, "next_step": next_step, "number": next_step + 1}
+            return self.render_to_response(context)
+        return self.finish({"total": total, "done": True})
+
+    def finish(self, context):
+        """End the refresh, swapping in the new value summary and the entries on screen."""
+        context["value"] = services.collection_value(self.request.user)
+        context["entries"] = self.shown_entries()
+        return self.render_to_response(context)
+
+    def shown_entries(self):
+        """The entries on the collection page the request came from (HTMX's HX-Current-URL),
+        with their new prices; none if it didn't come from the collection page."""
+        url = urlsplit(self.request.headers.get("HX-Current-URL", ""))
+        if url.path != reverse("collection:index"):
+            return []
+        query = QueryDict(url.query)
+        _filters, entries = collection_listing(self.request.user, query)
+        return Paginator(entries, PAGE_SIZE).get_page(query.get("page")).object_list
+
+
 class ResortWatch:
     """Notices when an entry action moves the entry within the collection page's current sort.
 

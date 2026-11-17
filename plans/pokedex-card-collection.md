@@ -266,10 +266,10 @@ When a search tile's detail fetch succeeds for a card already stored locally, up
 
 ### Acceptance criteria
 
-- [ ] Viewing a tile for a stored card updates its prices and "as of" timestamps.
-- [ ] The refresh shows progress and finishes with updated totals.
-- [ ] An outage mid-refresh stops it, shows the message and leaves the remaining prices unchanged.
-- [ ] Tests cover the automatic update, refresh progress and outage preservation.
+- [x] Viewing a tile for a stored card updates its prices and "as of" timestamps.
+- [x] The refresh shows progress and finishes with updated totals.
+- [x] An outage mid-refresh stops it, shows the message and leaves the remaining prices unchanged.
+- [x] Tests cover the automatic update, refresh progress and outage preservation.
 
 ---
 

@@ -32,7 +32,7 @@ def get_or_create_card(card_id, probe=False):
 
 
 def _store_card(detail):
-    updated = _parse_time(detail.get("prices_updated"))
+    updated = _price_time(detail)
     with transaction.atomic():
         card, created = Card.objects.get_or_create(
             tcgdex_id=detail["id"],
@@ -59,13 +59,64 @@ def _store_card(detail):
     return card
 
 
-def _parse_time(value):
-    """TCGplayer's price timestamp, or now if it's missing or unreadable."""
+def refresh_stored_card(detail):
+    """Update a stored card's data and variant prices from a TCGdex card detail. Does nothing
+    for a card no one has saved. Returns the Card, or None if it isn't stored."""
+    card = Card.objects.filter(tcgdex_id=detail["id"]).first()
+    if card is None:
+        return None
+    updated = _price_time(detail)
+    with transaction.atomic():
+        card.name = detail["name"]
+        card.set_id = detail["set_id"]
+        card.set_name = detail["set_name"]
+        card.rarity = detail["rarity"]
+        card.local_id = detail["local_id"]
+        card.image = detail["image"] or ""
+        card.series = tcgdex.cached_series_name(detail["set_id"]) or card.series
+        card.save()
+        for variant in detail["variants"]:
+            CardVariant.objects.update_or_create(
+                card=card,
+                variant=variant["code"],
+                defaults={"market_price": variant["price"], "price_updated": updated},
+            )
+    return card
+
+
+def owned_card_ids(user):
+    """The TCGdex IDs of the distinct cards the user owns, in a stable order."""
+    cards = Card.objects.filter(variants__owned__user=user).distinct().order_by("pk")
+    return list(cards.values_list("tcgdex_id", flat=True))
+
+
+def refresh_card(card_id, probe=False):
+    """Fetch a stored card's current data and prices from TCGdex (skipping the cache) and store
+    them. A card TCGdex no longer has is left as it is. Raises tcgdex.ProviderUnavailable when
+    TCGdex can't be reached; nothing is changed then."""
     try:
-        parsed = parse_datetime(value) if isinstance(value, str) else None
+        detail = tcgdex.card_detail(card_id, probe=probe, fresh=True)
+    except tcgdex.NotFound:
+        return
+    refresh_stored_card(detail)
+
+
+def _price_time(detail):
+    """When a card detail's prices are from: TCGplayer's timestamp, else when the detail was
+    fetched (it may come from the cache), else now."""
+    return (
+        _parse_time(detail.get("prices_updated"))
+        or _parse_time(detail.get("fetched"))
+        or timezone.now()
+    )
+
+
+def _parse_time(value):
+    """An ISO timestamp as a datetime, or None if it's missing or unreadable."""
+    try:
+        return parse_datetime(value) if isinstance(value, str) else None
     except ValueError:
-        parsed = None
-    return parsed or timezone.now()
+        return None
 
 
 def add_copy(user, card_id, variant, probe=False):

@@ -146,14 +146,18 @@ def _brief_cards(data):
     ]
 
 
-def card_detail(card_id, probe=False):
+def card_detail(card_id, probe=False, fresh=False):
     """Return one card's details, cached for 24 hours. Raises NotFound for an unknown ID.
 
+    `fresh` skips the cached copy and asks TCGdex (the result is still cached), for when the user
+    asked for current prices.
+
     The result has id, local_id, name, set_id, set_name, rarity, image (the base URL),
-    tile_image, prices_updated (TCGplayer's ISO timestamp, or None) and variants.
+    tile_image, prices_updated (TCGplayer's ISO timestamp, or None), fetched (when this detail
+    was fetched from TCGdex, ISO) and variants.
     """
     key = f"tcgdex:card:{card_id}"
-    card = cache.get(key)
+    card = None if fresh else cache.get(key)
     if card is None:
         card = _fetch(f"cards/{quote(card_id, safe='')}", _card_detail, probe=probe)
         cache.set(key, card, CARD_CACHE_SECONDS)
@@ -172,6 +176,7 @@ def _card_detail(data):
         "image": data.get("image"),
         "tile_image": image_url(data.get("image"), "low"),
         "prices_updated": tcgplayer.get("updated"),
+        "fetched": timezone.now().isoformat(),
         "variants": _variants(data.get("variants"), tcgplayer),
     }
 

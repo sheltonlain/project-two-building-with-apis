@@ -4,6 +4,7 @@
 <h1 class="text-3xl font-bold mb-4">My collection</h1>
 {% include "collection/_value_summary.html" %}
 {% if has_entries %}
+  <div class="mb-4">{% include "collection/_refresh_prices.html" %}</div>
   {# A plain GET form: the filters and sort live in the query string, so pages keep them. #}
   <form method="get" action="{% url 'collection:index' %}" class="flex flex-wrap items-end gap-2 mb-4" role="search">
     <label class="form-control grow">

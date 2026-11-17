@@ -1,0 +1,34 @@
+{% comment %}
+  The Refresh prices control. While refreshing, it posts the next step as soon as it loads and
+  is replaced by the response. When it ends (done, or stopped by an outage) the new value summary
+  and the entries on screen are swapped in out of band.
+{% endcomment %}
+{% if next_step is not None %}
+  <div id="refresh-prices" role="status" class="flex items-center gap-2 text-sm"
+       hx-post="{% url 'collection:refresh_prices' %}" hx-vals='{"step": {{ next_step }}}'
+       hx-trigger="load" hx-target="this" hx-swap="outerHTML">
+    <span class="loading loading-spinner loading-sm"></span>
+    Refreshing {{ number }} of {{ total }}…
+  </div>
+{% else %}
+  <div id="refresh-prices" class="flex flex-wrap items-center gap-2 text-sm">
+    <button type="button" class="btn btn-sm" hx-post="{% url 'collection:refresh_prices' %}"
+            hx-target="#refresh-prices" hx-swap="outerHTML">Refresh prices</button>
+    {% if done %}
+      <span role="status" class="text-success">Refreshed prices for {{ total }} card{{ total|pluralize }}.</span>
+    {% elif failed_step is not None %}
+      <span role="alert" class="text-warning">
+        Refreshed {{ failed_step }} of {{ total }} card{{ total|pluralize }}.
+        TCGdex, the card database, isn't responding, so the rest keep their saved prices. Try again in a minute.
+      </span>
+      {# A user retry: it asks TCGdex even if it was recently down, starting from the card that failed. #}
+      <button type="button" class="btn btn-sm btn-outline" hx-post="{% url 'collection:refresh_prices' %}"
+              hx-vals='{"step": {{ failed_step }}}' hx-headers='{"X-User-Retry": "1"}'
+              hx-target="#refresh-prices" hx-swap="outerHTML">Try again</button>
+    {% endif %}
+  </div>
+  {% if done or failed_step is not None %}
+    {% include "collection/_value_summary.html" with oob=True %}
+    {% for entry in entries %}{% include "collection/_entry.html" with oob=True %}{% endfor %}
+  {% endif %}
+{% endif %}

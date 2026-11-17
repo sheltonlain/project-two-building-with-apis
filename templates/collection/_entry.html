@@ -1,10 +1,11 @@
 {% comment %}
   One collection entry (an OwnedCard, annotated with `value`). Its buttons swap the whole entry
-  (outerHTML) with the response of collection/_entry_action.html.
+  (outerHTML) with the response of collection/_entry_action.html. Pass oob=True to swap it out
+  of band (Refresh prices does, so shown entries get their new prices).
 {% endcomment %}
 {% with card=entry.variant.card variant=entry.variant %}
 <article id="entry-{{ entry.pk }}" class="card card-side bg-base-100 shadow-sm"
-         hx-target="this" hx-swap="outerHTML">
+         hx-target="this" hx-swap="outerHTML"{% if oob %} hx-swap-oob="true"{% endif %}>
   <figure class="w-28 shrink-0 p-2 items-start">
     {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
   </figure>

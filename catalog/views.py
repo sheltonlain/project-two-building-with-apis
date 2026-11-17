@@ -110,6 +110,7 @@ class TileDetailsView(LoginRequiredMixin, TemplateView):
             context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(0, RETRY_SPREAD)
             return context
 
+        services.refresh_stored_card(card)  # the automatic price refresh for saved cards
         self.add_card_context(context, card, self.request.GET.get("variant", ""))
         return context
 

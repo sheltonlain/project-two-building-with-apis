@@ -28,6 +28,41 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented Phase 13: price refresh
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 13`
+2. "yes, go ahead with all three" (approved the three TDD behaviors)
+3. "yes, make it pass" (approved behavior 1's test)
+4. "yes, go on to behavior 2"
+5. "yes, make it pass" (approved behavior 2's test)
+6. "yes, go on to behavior 3"
+7. "yes, make it pass" (approved behavior 3's test)
+8. "yes, go ahead with the rest of the phase"
+9. "manual verification passed, go ahead"
+10. "yes to both" (update CLAUDE.md and PROMPTS.md)
+
+### Summary
+- **Outcome:** When a search tile loads details for a stored card, its stored card data,
+  variant prices and "as of" dates are updated in the same step. The collection page got a
+  Refresh prices button that refreshes one distinct owned card per HTMX request, skipping the
+  24-hour card cache, and shows "Refreshing N of M…"; at the end it swaps in the new value
+  summary and the entries on screen with their new prices. If TCGdex fails partway, the refresh
+  stops with "Refreshed X of M cards…" and a Try again button (a user retry from the failed
+  card), and the cards not reached keep their prices. When TCGplayer sends no price date, the
+  "as of" date is when the card was fetched, so cached details don't move it to today. Three
+  behaviors were built test-first; 199 tests pass.
+- **Deviations:** None. Every proposed behavior, test and next step was accepted as offered.
+- **Sideways:**
+  - Behavior 2 first failed with NoReverseMatch, not an assertion; a stub URL and empty view were
+    added so it failed on the missing progress text.
+  - Behavior 3 first crashed with an uncaught `ProviderUnavailable`; the test client was set not to
+    re-raise server errors so it failed on the 500 status instead.
+  - The outage message wrapped across a template line, so the test's text check failed once until
+    the sentence was put on one line.
+  - Known limitation: an inline note edit that is open when a refresh finishes is redrawn and its
+    unsaved text is lost.
+
 ## 2026-11-16 — Implemented Phase 12: notes
 
 ### Prompts
