@@ -145,10 +145,10 @@ On collection and wishlist pages, each card's image and name link to its detail 
 
 ### Acceptance criteria
 
-- [ ] Clicking a collection entry's image or name opens its card's detail page.
-- [ ] Clicking a wish's image or name opens its card's detail page.
-- [ ] Every button and notes control on those cards still works without navigating.
-- [ ] Links work after HTMX swaps of entries and of the wishlist body.
+- [x] Clicking a collection entry's image or name opens its card's detail page.
+- [x] Clicking a wish's image or name opens its card's detail page.
+- [x] Every button and notes control on those cards still works without navigating.
+- [x] Links work after HTMX swaps of entries and of the wishlist body.
 
 ---
 

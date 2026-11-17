@@ -6,14 +6,18 @@
 {% with card=entry.variant.card variant=entry.variant %}
 <article id="entry-{{ entry.pk }}" class="card bg-base-100 shadow-sm"
          hx-target="this" hx-swap="outerHTML"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {# The image and name open the card's page; the buttons and notes below stay outside the links. #}
+  {% url 'catalog:card_detail' card.tcgdex_id as card_url %}
   <div class="card-body p-4 gap-3 min-w-0">
     <header class="space-y-1">
-      <h2 class="card-title text-xl">{{ card.name }}</h2>
+      <h2 class="card-title text-xl"><a href="{{ card_url }}" class="link link-hover">{{ card.name }}</a></h2>
       <p class="text-sm opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}{% if card.local_id %} · #{{ card.local_id }}{% endif %}</p>
     </header>
     <div class="flex gap-4">{# The box stretches to at least the image's height. #}
       <figure class="w-24 sm:w-28 shrink-0 self-start">
-        {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+        <a href="{{ card_url }}" class="block w-full" tabindex="-1" aria-hidden="true">
+          {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+        </a>
       </figure>
       {# Laid out like a variant on the card page (catalog/_card_variants.html). #}
       <div class="flex-1 min-w-0 rounded-box border border-base-300 p-3 flex flex-col gap-3">

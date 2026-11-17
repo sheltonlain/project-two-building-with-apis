@@ -7,17 +7,21 @@
 {% with card=wish.variant.card variant=wish.variant fulfilled=wish.fulfilled_at %}
 <article id="wish-{{ wish.pk }}" class="card shadow-sm {% if fulfilled %}bg-base-100/60 border border-success/40{% else %}bg-base-100{% endif %}"
          hx-target="this" hx-swap="outerHTML">
+  {# The image and name open the card's page; the buttons and notes below stay outside the links. #}
+  {% url 'catalog:card_detail' card.tcgdex_id as card_url %}
   <div class="card-body p-4 gap-3 min-w-0">
     <header class="space-y-1">
       <h2 class="card-title text-xl">
-        <span{% if fulfilled %} class="line-through opacity-70"{% endif %}>{{ card.name }}</span>
+        <a href="{{ card_url }}" class="link link-hover{% if fulfilled %} line-through opacity-70{% endif %}">{{ card.name }}</a>
         {% if fulfilled %}<span class="badge badge-success">Got it</span>{% endif %}
       </h2>
       <p class="text-sm opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}{% if card.local_id %} · #{{ card.local_id }}{% endif %}</p>
     </header>
     <div class="flex gap-4">{# The box stretches to at least the image's height. #}
       <figure class="w-24 sm:w-28 shrink-0 self-start{% if fulfilled %} opacity-60{% endif %}">
-        {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+        <a href="{{ card_url }}" class="block w-full" tabindex="-1" aria-hidden="true">
+          {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+        </a>
       </figure>
       {# Laid out like a variant on the card page (catalog/_card_variants.html). #}
       <div class="flex-1 min-w-0 rounded-box border border-base-300 p-3 flex flex-col gap-3">
