@@ -404,3 +404,17 @@ def test_failed_filter_lists_retry_by_themselves_and_keep_the_chosen_set_and_rar
     assert '<input type="hidden" name="set" value="sv01">' in filters
     assert '<input type="hidden" name="rarity" value="Common">' in filters
     assert "Trying again in 32s" in filters
+
+
+@responses.activate
+def test_set_and_rarity_filters_are_typeable_and_keep_the_chosen_values(signed_in_client):
+    responses.get(CARDS_URL, json=fake_cards(2))
+
+    content = signed_in_client.get(SEARCH_URL, {"set": "sv03.5", "rarity": "Rare"}).content.decode()
+
+    assert re.search(r'<select name="set"[^>]*\bdata-combobox\b', content)
+    assert re.search(r'<select name="rarity"[^>]*\bdata-combobox\b', content)
+    # The real selects still carry the choice, so the enhanced filters show it and submit it.
+    assert '<option value="sv03.5" selected>151</option>' in content
+    assert '<option value="Rare" selected>Rare</option>' in content
+    assert "js/combobox.js" in content

@@ -3,7 +3,7 @@ from django.urls import reverse
 
 from catalog.models import Card
 from collection import services
-from collection.tests.helpers import make_owned, make_user
+from collection.tests.helpers import make_owned, make_user, select_tags
 
 
 @pytest.fixture
@@ -157,3 +157,14 @@ def test_steps_never_offer_a_re_sort_when_the_sort_ignores_quantity(ash_client, 
     html += step(ash_client, "entry_add", pikachu, reverse("collection:index") + "?sort=name")
 
     assert "Re-sort" not in html
+
+
+def test_set_and_rarity_filters_are_typeable_but_variant_and_sort_stay_plain(ash_client, ash):
+    make_owned(ash, "sv03.5-025", "Pikachu")
+
+    html = ash_client.get(reverse("collection:index"), {"set": "sv03.5"}).content.decode()
+
+    selects = select_tags(html)
+    assert "data-combobox" in selects["set"] and "data-combobox" in selects["rarity"]
+    assert "data-combobox" not in selects["variant"] and "data-combobox" not in selects["sort"]
+    assert '<option value="sv03.5" selected>151</option>' in html  # the real select still submits

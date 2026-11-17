@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from catalog.models import Card
 from collection import services
-from collection.tests.helpers import make_owned, make_user, make_wish
+from collection.tests.helpers import make_owned, make_user, make_wish, select_tags
 
 
 @pytest.fixture
@@ -138,3 +138,14 @@ def test_got_it_keep_and_ok_keep_the_pages_filters_and_sort(ash_client, ash):
     assert "Pikachu" in html  # now under Got it, still matching the variant filter
     assert "Charizard" not in html  # filtered out, as on the page
     assert response.context["filters"]["sort"] == "name"
+
+
+def test_set_and_rarity_filters_are_typeable_but_variant_and_sort_stay_plain(ash_client, ash):
+    make_wish(ash, "sv03.5-025", "Pikachu")
+
+    html = ash_client.get(reverse("collection:wishlist"), {"rarity": "Common"}).content.decode()
+
+    selects = select_tags(html)
+    assert "data-combobox" in selects["set"] and "data-combobox" in selects["rarity"]
+    assert "data-combobox" not in selects["variant"] and "data-combobox" not in selects["sort"]
+    assert '<option value="Common" selected>Common</option>' in html

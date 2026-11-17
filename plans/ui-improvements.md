@@ -59,13 +59,13 @@ A small script that turns an opted-in `<select>` into a combobox. Typing filters
 
 ### Acceptance criteria
 
-- [ ] Typing "151" in the search page's Set filter shows the 151 set under its series heading. Non-matching series headings are hidden.
-- [ ] Rarity filters the same way.
-- [ ] Choosing an option and submitting produces the same URL as the plain select did.
-- [ ] The current choice shows on page load, after an HTMX swap, and after Back (history restore).
-- [ ] Full keyboard use works and follows the ARIA combobox/listbox pattern.
-- [ ] With JavaScript disabled, the plain selects work.
-- [ ] Collection and wishlist Set and Rarity filters behave the same. Variant and Sort are unchanged.
+- [x] Typing "151" in the search page's Set filter shows the 151 set under its series heading. Non-matching series headings are hidden.
+- [x] Rarity filters the same way.
+- [x] Choosing an option and submitting produces the same URL as the plain select did.
+- [x] The current choice shows on page load, after an HTMX swap, and after Back (history restore).
+- [x] Full keyboard use works and follows the ARIA combobox/listbox pattern.
+- [x] With JavaScript disabled, the plain selects work.
+- [x] Collection and wishlist Set and Rarity filters behave the same. Variant and Sort are unchanged.
 
 ---
 

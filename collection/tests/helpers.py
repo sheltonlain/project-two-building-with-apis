@@ -1,5 +1,6 @@
 """Builders for collection tests that need stored cards without going through TCGdex."""
 
+import re
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -58,3 +59,11 @@ def make_wish(user, card_id, name, variant="normal", price=None, fulfilled_at=No
         fulfilled_at=fulfilled_at,
         notes=notes,
     )
+
+
+def select_tags(html):
+    """Each <select>'s opening tag in a page, by its name."""
+    return {
+        match.group(1): match.group(0)
+        for match in re.finditer(r'<select name="([^"]+)"[^>]*>', html)
+    }

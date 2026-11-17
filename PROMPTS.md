@@ -28,6 +28,30 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented UI improvements Phase 2: typeable Set and Rarity filters
+
+### Prompts
+1. `/implement @prd/ui-improvements.md @plans/ui-improvements.md Implement phase 2`
+2. "yes, go ahead" (approved building without TDD cycles, and the combobox design)
+3. "yes, all steps worked" (confirmed the manual verification)
+4. "Skip claude, update PROMPTS" (no CLAUDE.md change; asked for this log)
+
+### Summary
+- **Outcome:** Added `static/js/combobox.js`, a dependency-free script that turns any
+  `<select data-combobox>` into a typeable combobox (ARIA combobox/listbox pattern,
+  case-insensitive contains match, series headings kept as group labels, "Any set"/"Any
+  rarity" always present). The real select stays hidden in the form and is what gets
+  submitted, so URLs and server code are unchanged; without JavaScript the plain select
+  shows. It re-initializes on HTMX swaps and history restores. Applied to Set and Rarity on
+  the search, collection and wishlist pages; Variant and Sort stay plain. Tailwind now
+  scans `static/js`. Added one markup test per page. All 7 acceptance criteria ticked
+  (204 tests passing).
+- **Deviations:** The TDD step found no candidates: the behavior is all client-side and the
+  project has no JavaScript test runner, so verification was manual plus markup tests. The
+  user approved that. The suggested CLAUDE.md line was declined.
+- **Sideways:** Text appended to the test files from the shell had LF line endings, so
+  the formatter flagged one file; `ruff format` fixed it.
+
 ## 2026-11-16 — Implemented UI improvements Phase 1: search auto-retry
 
 ### Prompts

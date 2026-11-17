@@ -11,7 +11,7 @@
     </label>
     <label class="form-control">
       <span class="label-text mb-1">Set</span>
-      <select name="set" class="select select-bordered">
+      <select name="set" class="select select-bordered" data-combobox>
         <option value="">Any set</option>
         {% for set_id, set_name in options.sets %}
           <option value="{{ set_id }}"{% if set_id == filters.set %} selected{% endif %}>{{ set_name }}</option>
@@ -20,7 +20,7 @@
     </label>
     <label class="form-control">
       <span class="label-text mb-1">Rarity</span>
-      <select name="rarity" class="select select-bordered">
+      <select name="rarity" class="select select-bordered" data-combobox>
         <option value="">Any rarity</option>
         {% for rarity in options.rarities %}
           <option value="{{ rarity }}"{% if rarity == filters.rarity %} selected{% endif %}>{{ rarity }}</option>

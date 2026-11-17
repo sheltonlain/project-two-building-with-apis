@@ -16,7 +16,7 @@
     {% else %}
       <label class="form-control">
         <span class="label-text mb-1">Set</span>
-        <select name="set" class="select select-bordered">
+        <select name="set" class="select select-bordered" data-combobox>
           <option value="">Any set</option>
           {% for group in set_groups %}
             <optgroup label="{{ group.name }}">
@@ -29,7 +29,7 @@
       </label>
       <label class="form-control">
         <span class="label-text mb-1">Rarity</span>
-        <select name="rarity" class="select select-bordered">
+        <select name="rarity" class="select select-bordered" data-combobox>
           <option value="">Any rarity</option>
           {% for rarity in rarities %}
             <option value="{{ rarity }}"{% if rarity == filters.rarity %} selected{% endif %}>{{ rarity }}</option>

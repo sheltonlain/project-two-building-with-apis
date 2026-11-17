@@ -6,6 +6,7 @@
   <title>{% block title %}Pokedex{% endblock %} · Pokedex</title>
   {% tailwind_css %}
   <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+  <script src="{% static 'js/combobox.js' %}" defer></script>
 </head>
 <body class="min-h-screen bg-base-200" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   <nav class="navbar bg-base-100 shadow-sm px-4">
