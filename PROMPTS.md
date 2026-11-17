@@ -28,6 +28,26 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-17 — Implemented UI improvements Phase 6: card page links from collection and wishlist
+
+### Prompts
+1. `/implement @prd/ui-improvements.md @plans/ui-improvements.md implement phase 6`
+2. "yes, go ahead" (approved the two TDD behaviors: entry links and wish links)
+3. "yes, go ahead" (approved test 1: a collection entry links its image and name to the card page)
+4. "yes, go ahead" (moved on to test 2: wishes)
+5. "yes, it all works" (confirmed the manual verification)
+6. "No, just update prompts then commit and push"
+
+### Summary
+- **Outcome:** On collection entries and wishes, the image and name now link to the card detail page, following the search tile pattern. The image link is skipped by Tab and hidden from screen readers. Buttons, steppers and notes controls stay outside the links. `collection/tests/test_card_links.py` covers both pages and the HTMX swaps after "+" and Got it. All 243 tests pass, and all four acceptance criteria are ticked.
+- **Deviations:**
+  - The user declined a CLAUDE.md update.
+  - The swap tests check a wish that stays on the list after Got it, so they remain valid once phase 8 removes the Got it section.
+- **Sideways:**
+  - The first test run used the wrong URL name (`collection:collection` instead of `collection:index`). This was a mechanical fix with no change to what the test asserts.
+  - Claude wrote both TDD tests at once, then presented them one cycle at a time as the skill requires.
+  - The first PROMPTS.md edit failed to match because of Windows line endings, and the phase was committed and pushed without it. The entry went in as a follow-up commit.
+
 ## 2026-11-16 — Implemented UI improvements Phase 5: card detail notes
 
 ### Prompts
