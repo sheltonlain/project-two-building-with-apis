@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fulfilled Wish Warning</title>
+<!-- THROWAWAY PROTOTYPE. Not production code. Compares one-time "wish fulfilled" warnings that
+     replace the wishlist's "Got it" section, and whether a cleared wish is hidden or deleted. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5.0.0/daisyui.css" rel="stylesheet" type="text/css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.0.0"></script>
+<style>
+  /* Prototype switcher: deliberately NOT DaisyUI so it stays visually separate from the design */
+  #proto-switcher { position: fixed; left: 12px; bottom: 12px; z-index: 9999; background: #111; color: #eee;
+    font: 12px/1.4 ui-monospace, Consolas, monospace; border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    display: grid; gap: 6px; max-width: calc(100vw - 24px); }
+  #proto-switcher button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; cursor: pointer; font: inherit; }
+  #proto-switcher button.on { background: #f0c419; color: #111; border-color: #f0c419; }
+  #proto-switcher .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #proto-switcher .lbl { color: #999; }
+  #proto-state { font: 11px/1.4 ui-monospace, Consolas, monospace; }
+  .cardart { aspect-ratio: 5/7; border-radius: 6px; display: grid; place-items: center; font-weight: 700; color: #fff; text-align: center; padding: 4px; font-size: 12px; }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen pb-40">
+
+<nav class="navbar bg-base-100 shadow-sm px-4">
+  <div class="flex-1"><a class="btn btn-ghost text-xl" data-nav="home">Pokedex</a></div>
+  <ul class="menu menu-horizontal items-center gap-1">
+    <li><a data-nav="search">Search</a></li>
+    <li><a data-nav="collection">Collection</a></li>
+    <li><a data-nav="wishlist">Wishlist <span id="nav-count" class="badge badge-sm"></span></a></li>
+    <li><a>demo</a></li>
+  </ul>
+</nav>
+
+<div class="container mx-auto max-w-6xl p-4 grid gap-6 lg:grid-cols-[1fr_300px]">
+  <main id="page"></main>
+  <aside class="card bg-base-100 shadow-sm self-start">
+    <div class="card-body p-3">
+      <h2 class="font-semibold text-sm">Behind the scenes (database)</h2>
+      <div id="proto-state"></div>
+      <p class="text-xs opacity-60 mt-2">Page loads so far: <span id="loads"></span>. Each nav click or Reload is a full page load.</p>
+    </div>
+  </aside>
+</div>
+
+<div id="toasts" class="toast toast-end toast-bottom z-50"></div>
+
+<div id="proto-switcher">
+  <div class="row"><span class="lbl">Prototype:</span>
+    <button id="prev" title="←">◀</button><b id="vname"></b><button id="next" title="→">▶</button></div>
+  <div class="row"><span class="lbl">Once cleared, the wish is:</span>
+    <button data-mode="hide">hidden (− restores it)</button><button data-mode="delete">deleted</button></div>
+  <div class="row"><button id="reload">⟳ Reload page</button><button id="reset">Reset demo</button>
+    <span class="lbl">Try: Search → Add a wished card → go to Wishlist → leave</span></div>
+</div>
+
+<script>
+const VARIANTS = {
+  A: "A · Banner on wishlist",
+  B: "B · Toast right away, on this page",
+  C: "C · Inline on the wish",
+};
+const KEYS = Object.keys(VARIANTS);
+const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+let variant = pref("wfw-variant", "A");
+let mode = pref("wfw-mode", "hide");
+
+const CARDS = {
+  "sv03.5-025": { name: "Pikachu", set: "151", rarity: "Common", color: "#e0a800", variants: { normal: 0.28, reverse: 1.12 } },
+  "sv03.5-006": { name: "Charizard ex", set: "151", rarity: "Double Rare", color: "#d9480f", variants: { holo: 18.40 } },
+  "sv03.5-150": { name: "Mewtwo ex", set: "151", rarity: "Double Rare", color: "#7048e8", variants: { holo: 6.95 } },
+  "sv08-238": { name: "Pikachu ex", set: "Surging Sparks", rarity: "Special Illustration Rare", color: "#f59f00", variants: { holo: 412.50 } },
+  "base1-2": { name: "Blastoise", set: "Base Set", rarity: "Rare Holo", color: "#1c7ed6", variants: { holo: 145.00, first_edition: 4100.00 } },
+};
+const LABEL = { normal: "Normal", reverse: "Reverse holo", holo: "Holo", first_edition: "1st Edition" };
+
+let db, page, loads, ids, tileNotice, liveWarnings;
+function reset() {
+  ids = 100;
+  db = {
+    wishes: [
+      { id: 1, card: "sv03.5-006", variant: "holo", fulfilled: null, by: null, seen: false, hidden: false },
+      { id: 2, card: "sv08-238", variant: "holo", fulfilled: null, by: null, seen: false, hidden: false },
+      { id: 3, card: "base1-2", variant: "holo", fulfilled: null, by: null, seen: false, hidden: false },
+      { id: 4, card: "sv03.5-150", variant: "holo", fulfilled: null, by: null, seen: false, hidden: false },
+    ],
+    owned: [{ id: 50, card: "sv03.5-025", variant: "normal", qty: 2 }],
+  };
+  page = "search"; loads = 1; tileNotice = {}; liveWarnings = [];
+}
+
+// ---- services (in memory) ----
+const activeWish = (card, v) => db.wishes.find(w => w.card === card && w.variant === v && !w.fulfilled);
+function addCopy(card, v) {
+  let o = db.owned.find(o => o.card === card && o.variant === v);
+  if (o) o.qty++; else db.owned.push(o = { id: ++ids, card, variant: v, qty: 1 });
+  const w = activeWish(card, v);
+  if (w) Object.assign(w, { fulfilled: new Date(), by: o.id, seen: false, hidden: false });
+  return w;
+}
+function minus(o) {
+  o.qty--;
+  if (o.qty === 0) db.owned = db.owned.filter(x => x !== o);
+  const w = db.wishes.filter(w => w.fulfilled && w.by === o.id).sort((a, b) => b.fulfilled - a.fulfilled)[0];
+  if (!w) return null;
+  if (activeWish(w.card, w.variant)) { db.wishes = db.wishes.filter(x => x !== w); return null; }
+  Object.assign(w, { fulfilled: null, by: null, seen: false, hidden: false });
+  return w;
+}
+function keep(w) {
+  if (activeWish(w.card, w.variant)) db.wishes = db.wishes.filter(x => x !== w);
+  else Object.assign(w, { fulfilled: null, by: null, seen: false, hidden: false });
+}
+const pending = () => db.wishes.filter(w => w.fulfilled && !w.hidden);
+
+// A full page load: warnings already shown are cleared, then this page may show new ones.
+function load(to) {
+  page = to; loads++; tileNotice = {};
+  // B: every fulfilled wish clears on the next load, shown or not (its toast was on the old page).
+  for (const w of db.wishes.filter(w => w.fulfilled && (w.seen || variant === "B") && !w.hidden)) {
+    if (mode === "delete") db.wishes = db.wishes.filter(x => x !== w); else w.hidden = true;
+  }
+  const showsHere = variant !== "B" && page === "wishlist";
+  liveWarnings = showsHere ? pending().filter(w => !w.seen) : [];
+  liveWarnings.forEach(w => (w.seen = true));
+  render();
+}
+
+// ---- rendering ----
+const h = s => s;
+const money = n => "$" + n.toFixed(2);
+const art = (id, cls = "w-16") => `<div class="cardart ${cls}" style="background:${CARDS[id].color}">${CARDS[id].name}</div>`;
+const title = (w) => `${CARDS[w.card].name} (${LABEL[w.variant]})`;
+
+function render() {
+  document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("menu-active", a.dataset.nav === page));
+  const active = db.wishes.filter(w => !w.fulfilled).length;
+  document.getElementById("nav-count").textContent = active;
+  document.getElementById("page").innerHTML =
+    ({ home: homePage, search: searchPage, collection: collectionPage, wishlist: wishlistPage })[page]();
+  renderToasts();
+  renderSwitcher();
+  renderState();
+}
+
+function homePage() {
+  return `<div class="hero bg-base-100 rounded-box shadow py-12"><div class="hero-content text-center"><div>
+    <h1 class="text-4xl font-bold">Pokedex</h1><p class="py-4">Track the Pokémon cards you own and want.</p></div></div></div>`;
+}
+
+function searchPage() {
+  return `<h1 class="text-3xl font-bold mb-4">Search cards</h1>
+  <p class="mb-3 text-sm opacity-70">Demo results. Wished-for variants: Charizard ex Holo, Pikachu ex Holo, Blastoise Holo, Mewtwo ex Holo.</p>
+  <ul class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">${Object.entries(CARDS).map(([id, c]) => `
+    <li class="card bg-base-100 shadow-sm"><figure class="px-3 pt-3">${art(id, "w-full")}</figure>
+      <div class="card-body p-3 text-sm gap-1"><h2 class="card-title text-base">${c.name}</h2>
+        <p class="opacity-70">${c.set} · ${c.rarity}</p>
+        ${Object.entries(c.variants).map(([v, p]) => `
+          <div class="flex items-center justify-between gap-1"><span>${LABEL[v]} <b>${money(p)}</b>${activeWish(id, v) ? ' <span class="badge badge-xs badge-secondary">wished</span>' : ""}</span>
+          <button class="btn btn-xs btn-primary" data-add="${id}|${v}">Add</button></div>`).join("")}
+        ${tileNotice[id] ? `<p role="status" class="text-xs text-success">${tileNotice[id]}</p>` : ""}
+      </div></li>`).join("")}</ul>`;
+}
+
+function collectionPage() {
+  return `<h1 class="text-3xl font-bold mb-4">My collection</h1>
+  ${db.owned.length ? `<div class="grid gap-3 sm:grid-cols-2">${db.owned.map(o => `
+    <article class="card card-side bg-base-100 shadow-sm"><figure class="p-2">${art(o.card)}</figure>
+      <div class="card-body p-3 text-sm gap-1"><h2 class="font-semibold">${CARDS[o.card].name}</h2>
+      <p><span class="badge badge-outline badge-sm">${LABEL[o.variant]}</span></p>
+      <div class="join"><button class="btn btn-xs join-item" data-minus="${o.id}">−</button>
+        <span class="btn btn-xs join-item btn-disabled">${o.qty} owned</span>
+        <button class="btn btn-xs join-item" data-plus="${o.id}">+</button></div>
+      ${tileNotice["o" + o.id] ? `<p role="status" class="text-xs text-success">${tileNotice["o" + o.id]}</p>` : ""}
+      </div></article>`).join("")}</div>` : `<p class="opacity-70">Your collection is empty.</p>`}
+  ${Object.entries(tileNotice).filter(([k]) => k.startsWith("gone")).map(([, n]) => `<p role="status" class="text-sm text-success mt-3">${n}</p>`).join("")}`;
+}
+
+function wishCard(w, warn) {
+  const c = CARDS[w.card];
+  if (warn) return `
+    <article class="card card-side shadow-sm bg-warning/10 border border-warning">
+      <figure class="p-2">${art(w.card)}</figure>
+      <div class="card-body p-3 text-sm gap-1">
+        <h2 class="card-title text-base">${c.name} <span class="badge badge-warning badge-sm">Fulfilled</span></h2>
+        <p><span class="badge badge-outline badge-sm">${LABEL[w.variant]}</span></p>
+        <p class="text-xs">You added this to your collection, so it'll leave your wishlist when you leave this page.</p>
+        <div><button class="btn btn-sm btn-outline" data-keep="${w.id}">Keep it on my wishlist</button></div>
+      </div></article>`;
+  return `
+    <article class="card card-side bg-base-100 shadow-sm"><figure class="p-2">${art(w.card)}</figure>
+      <div class="card-body p-3 text-sm gap-1"><h2 class="card-title text-base">${c.name}</h2>
+        <p class="opacity-70">${c.set} · ${c.rarity}</p>
+        <p><span class="badge badge-outline badge-sm">${LABEL[w.variant]}</span> <b>${money(c.variants[w.variant])}</b></p>
+        <div class="flex gap-2"><button class="btn btn-sm btn-primary" data-gotit="${w.id}">Got it</button>
+          <button class="btn btn-sm btn-ghost text-error" data-remove="${w.id}">Remove</button></div>
+      </div></article>`;
+}
+
+function bannerA() {
+  if (!liveWarnings.length) return "";
+  return `<div role="alert" class="alert alert-warning mb-4 items-start">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.7-3L13.7 4a2 2 0 00-3.4 0L3.3 16a2 2 0 001.7 3z"/></svg>
+    <div class="grow"><h3 class="font-bold">You got ${liveWarnings.length} card${liveWarnings.length > 1 ? "s" : ""} you were wishing for</h3>
+      <p class="text-sm">They'll leave your wishlist when you leave this page. Want to keep wishing for one?</p>
+      <ul class="mt-2 grid gap-1">${liveWarnings.map(w => `<li class="flex items-center gap-2 text-sm">
+        <span class="grow">✓ ${title(w)}</span><button class="btn btn-xs" data-keep="${w.id}">Keep on wishlist</button></li>`).join("")}</ul></div></div>`;
+}
+
+function wishlistPage() {
+  const active = db.wishes.filter(w => !w.fulfilled).sort((a, b) => b.id - a.id);
+  let body = "";
+  if (variant === "A") body += bannerA();
+  const inlineWarn = variant === "C" ? liveWarnings : [];
+  const list = [...inlineWarn.map(w => wishCard(w, true)), ...active.map(w => wishCard(w, false))];
+  return `<h1 class="text-3xl font-bold mb-4">My wishlist</h1>${body}
+    <p class="mb-4 font-semibold">${active.length} wish${active.length === 1 ? "" : "es"}</p>
+    ${list.length ? `<div class="grid gap-4 sm:grid-cols-2">${list.join("")}</div>` : `<p class="opacity-70">No active wishes.</p>`}`;
+}
+
+function renderToasts() {
+  const el = document.getElementById("toasts");
+  el.innerHTML = variant !== "B" ? "" : liveWarnings.map(w => `
+    <div role="alert" class="alert alert-warning shadow-lg max-w-sm items-start">
+      <div class="grow text-sm"><b>Wish fulfilled:</b> ${title(w)}<br>
+        <span class="text-xs">It'll leave your wishlist when you leave or reload this page.</span></div>
+      <div class="flex flex-col gap-1"><button class="btn btn-xs" data-keep="${w.id}">Keep on wishlist</button>
+        <button class="btn btn-xs btn-ghost" data-close="${w.id}">✕</button></div></div>`).join("");
+}
+
+function renderState() {
+  const row = w => {
+    const st = !w.fulfilled ? '<span class="badge badge-xs badge-primary">active</span>'
+      : w.hidden ? '<span class="badge badge-xs">hidden</span>'
+      : w.seen ? '<span class="badge badge-xs badge-warning">shown — clears next load</span>'
+      : '<span class="badge badge-xs badge-success">fulfilled, not shown yet</span>';
+    return `<tr><td>#${w.id}</td><td>${title(w)}</td><td>${st}${w.by ? ` <span class="opacity-60">by copy #${w.by}</span>` : ""}</td></tr>`;
+  };
+  document.getElementById("proto-state").innerHTML = `
+    <table class="table table-xs"><thead><tr><th></th><th>Wish</th><th>State</th></tr></thead>
+    <tbody>${db.wishes.map(row).join("") || '<tr><td colspan="3">none</td></tr>'}</tbody></table>
+    <div class="mt-2 font-semibold">Owned</div>
+    <table class="table table-xs"><tbody>${db.owned.map(o => `<tr><td>#${o.id}</td><td>${CARDS[o.card].name} (${LABEL[o.variant]})</td><td>×${o.qty}</td></tr>`).join("")}</tbody></table>`;
+  document.getElementById("loads").textContent = loads;
+}
+
+function renderSwitcher() {
+  document.getElementById("vname").textContent = VARIANTS[variant];
+  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+}
+
+// B: the toast appears on the page where the add happened.
+function toastNow(w) {
+  if (!w || variant !== "B") return;
+  w.seen = true;
+  liveWarnings = [...liveWarnings, w];
+}
+
+// ---- events ----
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, a"); if (!t) return;
+  const d = t.dataset;
+  if (d.nav) return load(d.nav);
+  if (d.add) {
+    const [id, v] = d.add.split("|");
+    const w = addCopy(id, v);
+    toastNow(w);
+    tileNotice = { [id]: `Added ${LABEL[v]}.` + (w && variant !== "B" ? ` That fulfilled a wish. <a class="link" data-nav="wishlist">View on wishlist</a>` : "") };
+    return render();
+  }
+  if (d.gotit) {
+    const w = db.wishes.find(x => x.id == d.gotit);
+    addCopy(w.card, w.variant);
+    w.seen = true; liveWarnings = [...liveWarnings, w]; // shown right away on this page
+    return render();
+  }
+  if (d.keep) {
+    keep(db.wishes.find(x => x.id == d.keep));
+    liveWarnings = liveWarnings.filter(w => w.id != d.keep);
+    return render();
+  }
+  if (d.close) { liveWarnings = liveWarnings.filter(w => w.id != d.close); return render(); }
+  if (d.remove) { db.wishes = db.wishes.filter(w => w.id != d.remove); return render(); }
+  if (d.plus) { const o = db.owned.find(x => x.id == d.plus); const w = addCopy(o.card, o.variant); toastNow(w);
+    tileNotice = { ["o" + o.id]: "One more added." + (w && variant !== "B" ? " That fulfilled a wish." : "") }; return render(); }
+  if (d.minus) {
+    const o = db.owned.find(x => x.id == d.minus); const w = minus(o);
+    const msg = "One fewer." + (w ? ` Your wish for ${title(w)} is back on your wishlist.` : "");
+    tileNotice = { [(o.qty ? "o" + o.id : "gone" + o.id)]: msg }; return render();
+  }
+});
+const step = n => { variant = KEYS[(KEYS.indexOf(variant) + n + KEYS.length) % KEYS.length]; save("wfw-variant", variant); reset(); render(); };
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("reload").onclick = () => load(page);
+document.getElementById("reset").onclick = () => { reset(); render(); };
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { mode = b.dataset.mode; save("wfw-mode", mode); render(); });
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, select, textarea")) return;
+  if (e.key === "ArrowLeft") step(-1);
+  if (e.key === "ArrowRight") step(1);
+});
+
+reset(); render();
+</script>
+</body>
+</html>
