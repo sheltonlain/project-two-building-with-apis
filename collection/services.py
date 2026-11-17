@@ -119,8 +119,9 @@ def _parse_time(value):
         return None
 
 
-def add_copy(user, card_id, variant, probe=False):
-    """Add one copy of a card variant to the user's collection and return their OwnedCard.
+def add_copy(user, card_id, variant, probe=False, quantity=1, notes=""):
+    """Add copies (one unless `quantity` says more) of a card variant to the user's collection
+    and return their OwnedCard. Non-blank `notes` replace the entry's note.
 
     If the user has an active wish for that variant, it is fulfilled and linked to the OwnedCard;
     the returned OwnedCard's `fulfilled_wish` is that wish, or None.
@@ -130,10 +131,13 @@ def add_copy(user, card_id, variant, probe=False):
     if card_variant is None:
         raise UnsupportedVariant(f"{card.name} doesn't come in that variant.")
     with transaction.atomic():
-        owned, created = OwnedCard.objects.get_or_create(user=user, variant=card_variant)
+        owned, created = OwnedCard.objects.get_or_create(
+            user=user, variant=card_variant, defaults={"quantity": quantity, "notes": notes}
+        )
         if not created:
-            owned.quantity = F("quantity") + 1
-            owned.save(update_fields=["quantity", "updated"])
+            owned.quantity = F("quantity") + quantity
+            owned.notes = notes or owned.notes
+            owned.save(update_fields=["quantity", "notes", "updated"])
             owned.refresh_from_db()
         owned.fulfilled_wish = _fulfill_wish(owned)
     return owned
@@ -151,14 +155,28 @@ def _fulfill_wish(owned):
     return wish
 
 
-def add_wish(user, card_id, variant, probe=False):
+def add_wish(user, card_id, variant, probe=False, notes=""):
     """Wish for a card variant. Returns (wish, created); an active wish for the same variant is
-    returned, not duplicated."""
+    returned, not duplicated. Non-blank `notes` replace the wish's note."""
     card = get_or_create_card(card_id, probe=probe)
     card_variant = card.variants.filter(variant=variant).first()
     if card_variant is None:
         raise UnsupportedVariant(f"{card.name} doesn't come in that variant.")
-    return Wish.objects.get_or_create(user=user, variant=card_variant, fulfilled_at__isnull=True)
+    wish, created = Wish.objects.get_or_create(
+        user=user, variant=card_variant, fulfilled_at__isnull=True, defaults={"notes": notes}
+    )
+    if not created and notes:
+        wish.notes = notes
+        wish.save(update_fields=["notes"])
+    return wish, created
+
+
+def update_wish(wish, notes=None):
+    """Set a wish's notes (None leaves them as they are) and return it."""
+    if notes is not None:
+        wish.notes = notes
+        wish.save(update_fields=["notes"])
+    return wish
 
 
 def active_wishes(user):
@@ -338,10 +356,20 @@ WISH_SORT_FIELDS = {
 }
 
 
-def wish_entries(user, search="", set_id="", rarity="", variant="", ordering=DEFAULT_ORDERING):
-    """The user's active wishes, filtered like collection_entries(). `ordering` is a key of
-    WISH_SORT_FIELDS, "-" first for descending; unknown keys fall back to newest first."""
-    wishes = _filter_entries(active_wishes(user), search, set_id, rarity, variant)
+def wish_entries(
+    user,
+    search="",
+    set_id="",
+    rarity="",
+    variant="",
+    ordering=DEFAULT_ORDERING,
+    include_fulfilled=False,
+):
+    """The user's active wishes (with `include_fulfilled`, fulfilled-but-not-dismissed ones
+    too), filtered like collection_entries(). `ordering` is a key of WISH_SORT_FIELDS, "-"
+    first for descending; unknown keys fall back to newest first."""
+    wishes = all_wishes(user) if include_fulfilled else active_wishes(user)
+    wishes = _filter_entries(wishes, search, set_id, rarity, variant)
     return wishes.order_by(_sort(WISH_SORT_FIELDS, ordering), "-created", "-pk")
 
 
@@ -371,6 +399,20 @@ def _filter_options(cards, card_variants):
         "rarities": list(rarities.distinct()),
         "variants": [(code, label) for code, label in CardVariant.Variant.choices if code in codes],
     }
+
+
+def update_entry(owned, quantity=None, notes=None):
+    """Set an entry's quantity and/or notes (None leaves a field as it is). Quantity 0 deletes
+    the entry, like the stepper's last "−"; None is returned then, else the updated entry."""
+    if quantity == 0:
+        delete_entry(owned)
+        return None
+    fields = {"quantity": quantity, "notes": notes}
+    for name, value in fields.items():
+        if value is not None:
+            setattr(owned, name, value)
+    owned.save()
+    return owned
 
 
 def delete_entry(owned):

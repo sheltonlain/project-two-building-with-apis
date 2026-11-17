@@ -39,6 +39,32 @@ This creates two users you can sign in as:
 These are local demo accounts only. Re-running `seed_demo` resets their passwords, collections and
 wishlists. It only runs with `DJANGO_DEBUG=true` and makes no TCGdex calls.
 
+## API
+
+`/api/collection/` and `/api/wishlist/` list, create, retrieve, update (PATCH) and delete the
+signed-in user's own entries. Copy your token from the Account page and send it in a header:
+
+```sh
+curl -H "Authorization: Token <your token>" http://127.0.0.1:8000/api/collection/
+curl -H "Authorization: Token <your token>" -H "Content-Type: application/json" \
+  -d '{"card_id": "sv03.5-025", "variant": "normal", "quantity": 1}' \
+  http://127.0.0.1:8000/api/collection/
+```
+
+In Windows PowerShell, `curl` is `Invoke-WebRequest`; use `Invoke-RestMethod` instead:
+
+```powershell
+$headers = @{ Authorization = "Token <your token>" }
+Invoke-RestMethod http://127.0.0.1:8000/api/collection/ -Headers $headers
+Invoke-RestMethod http://127.0.0.1:8000/api/collection/ -Method Post -Headers $headers `
+  -ContentType "application/json" -Body '{"card_id": "sv03.5-025", "variant": "normal"}'
+```
+
+Variants are `normal`, `reverse`, `holo`, `first_edition` and `w_promo`. Lists take `search`, `set`,
+`rarity`, `variant`, `ordering` (for example `name`, `-price`, `-value`) and `page`. A PATCH may
+change `quantity` (0 deletes the entry) and `notes` on collection entries, and `notes` on wishes.
+While signed in on the website, the same URLs open DRF's browsable API.
+
 ## Checks
 
 ```sh

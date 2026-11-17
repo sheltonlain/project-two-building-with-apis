@@ -28,6 +28,39 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-17 — Implemented Phase 14: the app's own REST API
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 14`
+2. "I approve" (approved the three TDD behaviors: create fulfills a wish and returns the full entry, PATCH quantity 0 deletes, and 503/400 for an unstored card)
+3. "Yes, proceed" (approved test 1: create fulfills the matching wish and returns the documented shape)
+4. "Yes, proceed" (moved on to test 2: PATCH quantity 0)
+5. "go ahead" (approved test 2, with a 204 and no body)
+6. "go ahead" (moved on to test 3: the error mapping)
+7. "go ahead" (approved test 3)
+8. "go ahead" (implement and test the rest of the phase)
+9. "There is no API link, and I cannot run the curl -H command in teh terminal. It gives a Invoke-WebRequest : Cannot bind parameter 'Headers'. ..."
+10. "what card id and variant should I use in step 5"
+11. "Everything works, verify the acceptance criteria"
+12. "Update CLAUDE.md. Then update PROMPTS.md and commit and push"
+
+### Summary
+- **Outcome:** Django REST Framework was added with Token and Session authentication, IsAuthenticated, and pagination of 24 per page. `/api/collection/` and `/api/wishlist/` support list, create, retrieve, PATCH and delete, scoped to the requesting user (404 for anyone else). Both go through `collection/services.py`:
+  - `add_copy` now takes a quantity and notes.
+  - `add_wish` now takes notes.
+  - `update_entry` and `update_wish` are new.
+  - `wish_entries(include_fulfilled=True)` lists fulfilled wishes too.
+
+  `card_errors()` maps errors: an unknown card returns 400 on `card_id`, an unsupported variant returns 400 on `variant`, and TCGdex being down returns 503. A PATCH that sends anything besides quantity and notes (wishes: notes only) returns 400, and PUT returns 405. The Account page shows the API token, with "Open the API" and "Regenerate token" buttons, and the README has a new API section. 44 new API tests were added, and all 287 tests pass. All nine acceptance criteria are ticked, and CLAUDE.md gained four lines.
+- **Deviations:**
+  - The user asked a follow-up question: which card and variant to use for the wish-fulfillment check. Claude looked up a free variant (Ivysaur `sv03.5-002` reverse) in the local database.
+  - Claude's own design choices were left as they were: a blank note clears it through the API, creating a duplicate wish returns the existing one with 200, and lowering quantity by PATCH does not restore a wish the way "−" does.
+- **Sideways:**
+  - **TDD scaffolding:** test 1 first failed with a 404 because the route had no `create` method yet. A 501 stub was added so the test failed on its assertion. Test 3 first failed on unhandled exceptions, so the API test client was set to `raise_request_exception = False` to get a real 500 assertion failure.
+  - **Shell heredocs:** two Bash commands failed to parse because an apostrophe inside a heredoc broke the shell, so nothing in them ran. The files were then written with the Write and Edit tools.
+  - **API link:** the API link on the Account page was only the word "API" inside a sentence, and the user couldn't find it. It became an "Open the API" button.
+  - **Verification commands:** the manual steps used `curl -H`, which fails in Windows PowerShell because `curl` is `Invoke-WebRequest` there. PowerShell `Invoke-RestMethod` commands were given and added to the README.
+
 ## 2026-11-17 — Implemented UI improvements Phase 6: card page links from collection and wishlist
 
 ### Prompts

@@ -43,6 +43,10 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - Card page links to the collection and wishlist filter them by `q` (card name) and `set`.
 - Notes actions called with `?from=card` answer with just the card page's note area, and without HTMX return to the card page.
 - Signed-in pages are `no-store`, so Back/Forward never shows a stale copy.
+- The API (`api/`) goes through the services module; `card_errors()` maps TCGdex and variant errors to 400 or 503.
+- API PATCH may change only quantity and notes (wishes: notes only); other fields return 400; quantity 0 deletes.
+- The API wishlist list includes fulfilled-but-not-dismissed wishes.
+- On Windows PowerShell, use `Invoke-RestMethod` with `-Headers @{...}` or `curl.exe`, not `curl`.
 
 ## References
 

@@ -290,12 +290,12 @@ Errors: 400 with field errors for an unknown card ID, an unsupported variant, a 
 
 ### Acceptance criteria
 
-- [ ] The token is visible on the Account page, and regenerating it invalidates the old one.
-- [ ] Token-header and session-authenticated requests both work; the browsable API is usable while signed in.
-- [ ] Both list endpoints paginate and support the website's filter and ordering options.
-- [ ] Collection create fulfills matching wishes and returns the documented response shape.
-- [ ] Quantity 0 through PATCH deletes the entry; changing the variant is not allowed.
-- [ ] Wishlist create requires a valid variant; wishlist PATCH changes notes only.
-- [ ] Unknown card or unsupported variant returns 400; TCGdex down for an unstored card returns 503.
-- [ ] Other users' entries return 404; unauthenticated requests are rejected.
-- [ ] Tests cover token authentication, 503 on create, quantity-zero deletion, variant validation and owner-only 404 on both endpoints.
+- [x] The token is visible on the Account page, and regenerating it invalidates the old one.
+- [x] Token-header and session-authenticated requests both work; the browsable API is usable while signed in.
+- [x] Both list endpoints paginate and support the website's filter and ordering options.
+- [x] Collection create fulfills matching wishes and returns the documented response shape.
+- [x] Quantity 0 through PATCH deletes the entry; changing the variant is not allowed.
+- [x] Wishlist create requires a valid variant; wishlist PATCH changes notes only.
+- [x] Unknown card or unsupported variant returns 400; TCGdex down for an unstored card returns 503.
+- [x] Other users' entries return 404; unauthenticated requests are rejected.
+- [x] Tests cover token authentication, 503 on create, quantity-zero deletion, variant validation and owner-only 404 on both endpoints.

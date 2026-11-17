@@ -21,4 +21,22 @@
     </div>
   </div>
 </div>
+<div class="card bg-base-100 shadow max-w-md mt-4">
+  <div class="card-body">
+    <h2 class="card-title">API token</h2>
+    <p class="text-sm opacity-70">
+      Programs can use your collection and wishlist through the API. Send this token in the
+      <code>Authorization</code> header as <code>Token &lt;your token&gt;</code>.
+    </p>
+    <input id="api-token" type="text" readonly value="{{ api_token.key }}"
+           class="input input-bordered w-full font-mono text-sm" aria-label="Your API token"
+           onclick="this.select()">
+    <form method="post" action="{% url 'accounts:regenerate_token' %}" class="card-actions mt-2"
+          onsubmit="return confirm('Regenerate your API token? Programs using the old one will stop working.')">
+      {% csrf_token %}
+      <a class="btn btn-primary" href="{% url 'api:api-root' %}">Open the API</a>
+      <button type="submit" class="btn btn-outline">Regenerate token</button>
+    </form>
+  </div>
+</div>
 {% endblock %}

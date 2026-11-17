@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django_tailwind_cli",
+    "rest_framework",
+    "rest_framework.authtoken",
     "accounts",
     "catalog",
     "collection",
@@ -131,6 +133,19 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 TAILWIND_CLI_USE_DAISY_UI = True
 TAILWIND_CLI_SRC_CSS = "assets/css/source.css"
 TAILWIND_CLI_DIST_CSS = "css/tailwind.css"
+
+
+# The app's own API: a personal token (header "Authorization: Token <key>") or the website
+# session; every endpoint needs a signed-in user.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 24,
+}
 
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
