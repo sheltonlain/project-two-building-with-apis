@@ -1,0 +1,76 @@
+{% comment %}
+  The card page's variants: each one's price, what the user owns of it and whether it's on their
+  wishlist, with its buttons. Their actions (catalog:card_add, card_remove, card_wish) answer
+  with this section, which replaces itself (outerHTML).
+{% endcomment %}
+<section id="card-variants" class="flex flex-col gap-4" hx-target="this" hx-swap="outerHTML">
+  {% if card %}
+    {% if collection_url or wishlist_url %}
+      <p class="flex flex-wrap gap-2">
+        {% if collection_url %}<a href="{{ collection_url }}" class="btn btn-sm btn-outline">View in my collection</a>{% endif %}
+        {% if wishlist_url %}<a href="{{ wishlist_url }}" class="btn btn-sm btn-outline">View on my wishlist</a>{% endif %}
+      </p>
+    {% endif %}
+    {% if error and not acted_row %}<p role="alert" class="text-error">{{ error }}</p>{% endif %}
+    {% url 'catalog:card_add' card.id as add_url %}
+    {% url 'catalog:card_remove' card.id as remove_url %}
+    {% url 'catalog:card_wish' card.id as wish_url %}
+    <ul class="space-y-4">
+      {% for variant in variants %}
+        <li class="rounded-box border border-base-300 p-5 flex flex-col gap-5">
+          <p>{% include "includes/variant_badge.html" with code=variant.code label=variant.label %}</p>
+          {% if variant.price is not None %}
+            <p>
+              <span class="text-2xl font-semibold">${{ variant.price }}</span> each
+              {% if variant.price_updated %}<span class="text-sm opacity-70 ml-1">as of {{ variant.price_updated|date:"M j, Y" }}</span>{% endif %}
+            </p>
+            {% if variant.value is not None %}<p class="text-lg">Total Value: <span class="font-semibold">${{ variant.value|floatformat:"2g" }}</span></p>{% endif %}
+          {% else %}
+            <p class="text-lg opacity-70">No price</p>
+          {% endif %}
+          {% if variant.entry and variant.entry.notes %}
+            <p class="italic opacity-80 break-words whitespace-pre-line border-l-4 border-base-300 pl-3">{{ variant.entry.notes }}</p>
+          {% endif %}
+          <div class="flex flex-wrap items-center gap-3">
+            {% if variant.entry %}
+              <div class="join">
+                <button type="button" class="btn join-item" hx-post="{{ remove_url }}"
+                        hx-vals='{"variant": "{{ variant.code }}"}' aria-label="Remove one {{ variant.label }}">−</button>
+                <span class="join-item inline-flex items-center px-4 border border-base-300 font-semibold">{{ variant.entry.quantity }} owned</span>
+                <button type="button" class="btn btn-primary join-item" hx-post="{{ add_url }}"
+                        hx-vals='{"variant": "{{ variant.code }}"}' aria-label="Add one {{ variant.label }}">+</button>
+              </div>
+            {% else %}
+              <span class="opacity-70">Not in your collection</span>
+              <button type="button" class="btn btn-primary" hx-post="{{ add_url }}"
+                      hx-vals='{"variant": "{{ variant.code }}"}' aria-label="Add {{ variant.label }} to collection">Add to collection</button>
+            {% endif %}
+            {% if variant.wished %}
+              <span class="badge badge-secondary">On your wishlist</span>
+            {% else %}
+              <button type="button" class="btn btn-outline" hx-post="{{ wish_url }}"
+                      hx-vals='{"variant": "{{ variant.code }}"}' aria-label="Add {{ variant.label }} to wishlist">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 shrink-0" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                Add to wishlist
+              </button>
+            {% endif %}
+          </div>
+          {% if variant.code == acted %}
+            {% if notice %}<p role="status" class="text-success">{{ notice }}</p>{% endif %}
+            {% if error %}<p role="alert" class="text-error">{{ error }}</p>{% endif %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="text-sm opacity-70">TCGplayer market prices, USD</p>
+  {% elif unavailable %}
+    <div role="alert" class="alert alert-warning">
+      <span>{{ error }}</span>
+      <button type="button" class="btn btn-sm" hx-post="{{ retry_url }}" hx-vals='{"variant": "{{ acted }}"}'
+              hx-headers='{"X-User-Retry": "1"}'>Retry</button>
+    </div>
+  {% elif not_found %}
+    <p class="opacity-70">TCGdex no longer lists this card. Try searching for it by name instead.</p>
+  {% endif %}
+</section>
+{% if update_nav %}{% include "includes/nav_wish_count.html" with oob=True %}{% endif %}

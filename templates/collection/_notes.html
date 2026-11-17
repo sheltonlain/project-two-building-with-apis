@@ -26,8 +26,8 @@
     </div>
   </form>
 {% else %}
-  {% if notes %}<p class="italic opacity-80 break-words whitespace-pre-line">{{ notes }}</p>{% endif %}
-  <div class="flex gap-2 text-xs">
+  {% if notes %}<p class="italic opacity-80 break-words whitespace-pre-line border-l-4 border-base-300 pl-3">{{ notes }}</p>{% endif %}
+  <div class="flex gap-3 text-sm">
     <a href="{{ notes_url }}" hx-get="{{ notes_url }}" class="link">{% if notes %}Edit note{% else %}Add note{% endif %}</a>
     {% if notes %}
       <button type="button" class="link text-error" hx-post="{{ delete_url }}"

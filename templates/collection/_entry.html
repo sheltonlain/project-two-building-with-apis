@@ -4,44 +4,51 @@
   of band (Refresh prices does, so shown entries get their new prices).
 {% endcomment %}
 {% with card=entry.variant.card variant=entry.variant %}
-<article id="entry-{{ entry.pk }}" class="card card-side bg-base-100 shadow-sm"
+<article id="entry-{{ entry.pk }}" class="card bg-base-100 shadow-sm"
          hx-target="this" hx-swap="outerHTML"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <figure class="w-28 shrink-0 p-2 items-start">
-    {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
-  </figure>
-  <div class="card-body p-3 gap-1 text-sm min-w-0">
-    <h2 class="card-title text-base">{{ card.name }}</h2>
-    <p class="opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}</p>
-    <p><span class="badge badge-outline badge-sm">{{ variant.get_variant_display }}</span></p>
-    <p>
-      {% if variant.market_price is not None %}
-        <span class="font-semibold">${{ variant.market_price }}</span> each
-        <span class="text-xs opacity-70">· as of {{ variant.price_updated|date:"M j, Y" }}</span><br>
-        Total Value: <span class="font-semibold">${{ entry.value|floatformat:"2g" }}</span>
-      {% else %}
-        <span class="opacity-70">No price</span>
-      {% endif %}
-    </p>
-    {% url 'collection:entry_notes' entry.pk as notes_url %}{% url 'collection:entry_notes_delete' entry.pk as delete_url %}
-    {% include "collection/_notes.html" with notes=entry.notes name=card.name %}
-    <div class="flex items-center gap-2 mt-1">
-      <div class="join">
-        <button type="button" class="btn btn-sm join-item" hx-post="{% url 'collection:entry_remove' entry.pk %}"
-                aria-label="Remove one {{ variant.get_variant_display }}">−</button>
-        <span class="join-item flex items-center px-3 border border-base-300 font-semibold">{{ entry.quantity }} owned</span>
-        <button type="button" class="btn btn-sm btn-primary join-item" hx-post="{% url 'collection:entry_add' entry.pk %}"
-                aria-label="Add one {{ variant.get_variant_display }}">+</button>
+  <div class="card-body p-4 gap-3 min-w-0">
+    <header class="space-y-1">
+      <h2 class="card-title text-xl">{{ card.name }}</h2>
+      <p class="text-sm opacity-70">{{ card.set_name }}{% if card.rarity %} · {{ card.rarity }}{% endif %}{% if card.local_id %} · #{{ card.local_id }}{% endif %}</p>
+    </header>
+    <div class="flex gap-4">{# The box stretches to at least the image's height. #}
+      <figure class="w-24 sm:w-28 shrink-0 self-start">
+        {% include "includes/card_image.html" with src=card.tile_image name=card.name number=card.local_id %}
+      </figure>
+      {# Laid out like a variant on the card page (catalog/_card_variants.html). #}
+      <div class="flex-1 min-w-0 rounded-box border border-base-300 p-3 flex flex-col gap-3">
+        <p>{% include "includes/variant_badge.html" with code=variant.variant label=variant.get_variant_display %}</p>
+        {% if variant.market_price is not None %}
+          <p>
+            <span class="text-xl font-semibold">${{ variant.market_price }}</span> each
+            <span class="text-sm opacity-70 ml-1">as of {{ variant.price_updated|date:"M j, Y" }}</span>
+          </p>
+          <p>Total Value: <span class="font-semibold">${{ entry.value|floatformat:"2g" }}</span></p>
+        {% else %}
+          <p class="opacity-70">No price</p>
+        {% endif %}
+        {% url 'collection:entry_notes' entry.pk as notes_url %}{% url 'collection:entry_notes_delete' entry.pk as delete_url %}
+        {% include "collection/_notes.html" with notes=entry.notes name=card.name %}
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="join">
+            <button type="button" class="btn join-item" hx-post="{% url 'collection:entry_remove' entry.pk %}"
+                    aria-label="Remove one {{ variant.get_variant_display }}">−</button>
+            <span class="join-item inline-flex items-center px-4 border border-base-300 font-semibold">{{ entry.quantity }} owned</span>
+            <button type="button" class="btn btn-primary join-item" hx-post="{% url 'collection:entry_add' entry.pk %}"
+                    aria-label="Add one {{ variant.get_variant_display }}">+</button>
+          </div>
+          <button type="button" class="btn btn-ghost text-error" hx-post="{% url 'collection:entry_delete' entry.pk %}"
+                  hx-confirm="Remove {{ card.name }} ({{ variant.get_variant_display }}) from your collection?">Remove</button>
+        </div>
+        {% if notice %}
+          <p role="status" class="text-sm text-success">
+            {{ notice }}{% if wish_fulfilled %} <a href="{% url 'collection:wishlist' %}" class="link">View on wishlist</a>{% endif %}
+            {% if undo_url %}<button type="button" class="link ml-1" hx-post="{{ undo_url }}">Undo</button>{% endif %}
+          </p>
+        {% endif %}
+        {% if error %}<p role="alert" class="text-sm text-error">{{ error }}</p>{% endif %}
       </div>
-      <button type="button" class="btn btn-sm btn-ghost text-error" hx-post="{% url 'collection:entry_delete' entry.pk %}"
-              hx-confirm="Remove {{ card.name }} ({{ variant.get_variant_display }}) from your collection?">Remove</button>
     </div>
-    {% if notice %}
-      <p role="status" class="text-xs text-success">
-        {{ notice }}{% if wish_fulfilled %} <a href="{% url 'collection:wishlist' %}" class="link">View on wishlist</a>{% endif %}
-        {% if undo_url %}<button type="button" class="link ml-1" hx-post="{{ undo_url }}">Undo</button>{% endif %}
-      </p>
-    {% endif %}
-    {% if error %}<p role="alert" class="text-xs text-error">{{ error }}</p>{% endif %}
   </div>
 </article>
 {% endwith %}

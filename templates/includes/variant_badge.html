@@ -1,0 +1,2 @@
+{# A variant's badge; each variant has its own color. Full class names, so Tailwind keeps them. Takes `code` and `label`. #}
+<span class="badge badge-lg {% if code == 'normal' %}badge-neutral{% elif code == 'reverse' %}badge-info{% elif code == 'holo' %}badge-secondary{% elif code == 'first_edition' %}badge-warning{% else %}badge-accent{% endif %}">{{ label }}</span>

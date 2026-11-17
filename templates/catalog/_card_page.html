@@ -33,32 +33,7 @@
           </div>
         {% endif %}
 
-        <ul class="space-y-4">
-          {% for variant in variants %}
-            <li class="rounded-box border border-base-300 p-5 flex flex-col gap-5">
-              {# Each variant has its own badge color. Full class names, so Tailwind keeps them. #}
-              <p><span class="badge badge-lg {% if variant.code == 'normal' %}badge-neutral{% elif variant.code == 'reverse' %}badge-info{% elif variant.code == 'holo' %}badge-secondary{% elif variant.code == 'first_edition' %}badge-warning{% else %}badge-accent{% endif %}">{{ variant.label }}</span></p>
-              {% if variant.price is not None %}
-                <p>
-                  <span class="text-2xl font-semibold">${{ variant.price }}</span> each
-                  {% if variant.price_updated %}<span class="text-sm opacity-70 ml-1">as of {{ variant.price_updated|date:"M j, Y" }}</span>{% endif %}
-                </p>
-                {% if variant.value is not None %}<p class="text-lg">Total Value: <span class="font-semibold">${{ variant.value|floatformat:"2g" }}</span></p>{% endif %}
-              {% else %}
-                <p class="text-lg opacity-70">No price</p>
-              {% endif %}
-              {% if variant.entry %}
-                {% if variant.entry.notes %}
-                  <p class="italic opacity-80 break-words whitespace-pre-line border-l-4 border-base-300 pl-3">{{ variant.entry.notes }}</p>
-                {% endif %}
-                <p><span class="inline-flex items-center px-4 h-10 border border-base-300 rounded-field font-semibold">{{ variant.entry.quantity }} owned</span></p>
-              {% else %}
-                <p class="opacity-70">Not in your collection</p>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-        <p class="text-sm opacity-70">TCGplayer market prices, USD</p>
+        {% include "catalog/_card_variants.html" %}
       </div>
     </article>
   {% elif unavailable %}

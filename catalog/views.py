@@ -1,4 +1,5 @@
 import random
+from urllib.parse import urlencode
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
@@ -175,7 +176,9 @@ class TileAddView(TileActionView):
 
     def act(self, context, card_id, variant):
         try:
-            owned = services.add_copy(self.request.user, card_id, variant)
+            owned = services.add_copy(
+                self.request.user, card_id, variant, probe=is_user_retry(self.request)
+            )
         except services.UnsupportedVariant:
             context["error"] = "This card doesn't come in that variant. Pick one from the list."
         except tcgdex.NotFound:
@@ -218,7 +221,9 @@ class TileWishView(TileActionView):
 
     def act(self, context, card_id, variant):
         try:
-            wish, created = services.add_wish(self.request.user, card_id, variant)
+            wish, created = services.add_wish(
+                self.request.user, card_id, variant, probe=is_user_retry(self.request)
+            )
         except services.UnsupportedVariant:
             context["error"] = "This card doesn't come in that variant. Pick one from the list."
         except tcgdex.NotFound:
@@ -238,6 +243,30 @@ class TileWishView(TileActionView):
             else:
                 context["notice"] = f"{label} is already on your wishlist."
             context["update_nav"] = True
+
+
+def add_variant_rows(context, user, card):
+    """The card page's variant rows: each variant with the user's entry for it (or None), that
+    entry's total value, and whether it's on their wishlist. Also links to this card on the
+    user's collection and wishlist pages, when they have something of it there."""
+    entries = services.owned_entries(user, card["id"])
+    wished = services.wished_variants(user, card["id"])
+    rows = []
+    for variant in card["variants"]:
+        entry = entries.get(variant["code"])
+        value = None
+        if entry is not None and variant["price"] is not None:
+            value = variant["price"] * entry.quantity
+        rows.append(
+            {**variant, "entry": entry, "value": value, "wished": variant["code"] in wished}
+        )
+    context["variants"] = rows
+    # The pages' search and set filters narrow them to this card.
+    query = urlencode({"q": card["name"], "set": card["set_id"]})
+    if entries:
+        context["collection_url"] = f"{reverse('collection:index')}?{query}"
+    if wished:
+        context["wishlist_url"] = f"{reverse('collection:wishlist')}?{query}"
 
 
 class CardDetailView(LoginRequiredMixin, TemplateView):
@@ -280,20 +309,8 @@ class CardDetailView(LoginRequiredMixin, TemplateView):
             updated = services.price_time(card)
             card = {**card, "variants": [{**v, "price_updated": updated} for v in card["variants"]]}
         context["card"] = {**card, "image_large": tcgdex.image_url(card["image"], "high")}
-        context["variants"] = self.with_owned(card["variants"], card_id)
+        add_variant_rows(context, self.request.user, card)
         return context
-
-    def with_owned(self, variants, card_id):
-        """Each variant with the user's entry for it (or None) and that entry's total value."""
-        entries = services.owned_entries(self.request.user, card_id)
-        rows = []
-        for variant in variants:
-            entry = entries.get(variant["code"])
-            value = None
-            if entry is not None and variant["price"] is not None:
-                value = variant["price"] * entry.quantity
-            rows.append({**variant, "entry": entry, "value": value})
-        return rows
 
     def render_to_response(self, context, **kwargs):
         if context.get("not_found") and not self.is_fragment_request():
@@ -301,3 +318,42 @@ class CardDetailView(LoginRequiredMixin, TemplateView):
             # 200 so HTMX swaps the message in.
             kwargs["status"] = 404
         return super().render_to_response(context, **kwargs)
+
+
+class CardActionMixin:
+    """Base for the card page's actions: POST `variant`, get the updated variants section back.
+
+    The actions are the search tile's (same services, notices and errors). Afterwards the
+    section is drawn from the stored Card, so it doesn't depend on TCGdex.
+    """
+
+    template_name = "catalog/_card_variants.html"
+    http_method_names = ["post"]
+
+    def post(self, request, card_id):
+        variant = request.POST.get("variant", "")
+        context = {"card_id": card_id, "acted": variant}
+        self.act(context, card_id, variant)
+        if "unavailable" in context:
+            # Retry repeats this action as a user retry, which checks TCGdex even while the
+            # breaker is open. It isn't automatic: the user decides whether to add after all.
+            context["retry_url"] = request.path
+        elif "not_found" not in context:
+            card = get_object_or_404(Card, tcgdex_id=card_id).as_detail()
+            context["card"] = card
+            add_variant_rows(context, request.user, card)
+            # A message for a variant the card doesn't come in goes above the rows instead.
+            context["acted_row"] = any(v["code"] == variant for v in card["variants"])
+        return self.render_to_response(context)
+
+
+class CardAddView(CardActionMixin, TileAddView):
+    """Add one copy of a variant (its Add button and its stepper's "+")."""
+
+
+class CardRemoveView(CardActionMixin, TileRemoveView):
+    """The stepper's "−": one copy fewer of a variant."""
+
+
+class CardWishView(CardActionMixin, TileWishView):
+    """Add a variant to the user's wishlist."""

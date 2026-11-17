@@ -28,6 +28,33 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented UI improvements Phase 4: card detail actions
+
+### Prompts
+1. `/implement @prd/ui-improvements.md @plans/ui-improvements.md Implement phase 4`
+2. "yes, go ahead" (approved the three TDD behaviors and the `?q=<name>&set=<set id>` link approach)
+3. "write tests 2 and 3 with the same check" (after test 1 passed without first failing)
+4. "yes, go ahead" (build the rest of the phase normally)
+5. "Manual verification passes. Really quickly, let's update the UI for cards in our collection and on our wishlist so they mirror the way cards appear in the card detail page. I think that UI looks more polished."
+6. "This looks better. The only thing is that the  photo should either be centered in the tile or resized to match the tile's height"
+7. "Make sure to center the card vertically on the wishlist as well. Also, on the collection and wishlist page, can we have the title and set for the card left aligned? I think that might look better."
+8. "I like this better, but I actually don't like the vertical centering on the image. Is there any way we can make the image the same size as the details box?"
+   - Answer to the follow-up question: **Top-align, box matches** (recommended)
+9. "yes, go ahead with the acceptance criteria"
+10. "add only the second rule then proceed" (CLAUDE.md)
+11. "yes, update PROMPTS.md then commit and push"
+
+### Summary
+- **Outcome:** Each variant on the card detail page now shows Add to collection or a "− N owned +" stepper, and "On your wishlist" or Add to wishlist. New POST URLs `catalog:card_add`, `card_remove` and `card_wish` reuse the search tile actions and shared services. They swap only the new variants section (`catalog/_card_variants.html`), which is drawn from the stored Card, and update the nav wish count out of band. "View in my collection" and "View on my wishlist" appear only when the user has a matching entry, and link to those pages filtered by `q` (card name) and `set`. An unsupported variant shows its error above the rows. An outage shows the message with a Retry that repeats the action as a user retry. There is no automatic retry, so nothing is added without a click. Tile Add and Add to wishlist now pass `probe` on a user retry. 11 new tests in `catalog/tests/test_card_actions.py`; all 226 tests pass and every Phase 4 criterion is ticked. Collection and wishlist cards were restyled to match the detail page, with a shared colored badge (`includes/variant_badge.html`), the title and set across the top, and the image beside a bordered details box. CLAUDE.md gained one line on the card page's filtered links.
+- **Deviations:**
+  - The collection and wishlist restyle was outside Phase 4's scope and was added on request. It took three rounds: image vertically centered, then the title moved above the image row, then the image top-aligned with the box stretched to at least the image's height.
+  - Only one of the two suggested CLAUDE.md rules was added.
+- **Sideways:**
+  - All three TDD tests passed on their first real run, because the scaffolding (reused tile actions, the variant-rows helper and the section template) already implemented them. None was ever RED. Each was instead checked by temporarily breaking the code (wished status always false, wishes from every user, links always shown), confirming the test failed, then restoring it.
+  - Test 1 first failed only on a wrongly guessed notice text, fixed to match the existing shared notice. Two later tests failed because messages from the view are HTML-escaped (`doesn&#x27;t`); they now unescape before matching.
+  - A long Bash heredoc for the restyle failed with an unexpected-EOF error and wrote nothing; the script was saved to the scratchpad and run from there.
+  - Making the image exactly as tall as the details box isn't reliably possible in CSS, since the image's width would depend on the box's height. The user picked a top-aligned image with the box stretched to match instead.
+
 ## 2026-11-16 — Implemented UI improvements Phase 3: card detail page
 
 ### Prompts

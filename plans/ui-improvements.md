@@ -107,12 +107,12 @@ Each variant row on the detail page shows how many the user owns, with Add or a 
 
 ### Acceptance criteria
 
-- [ ] Owned counts and wishlist status are correct per variant and scoped to the signed-in user.
-- [ ] Add, "+", "−" and Add to wishlist update the variants section in place and update the nav's active-wish count.
-- [ ] "−" removing the last copy deletes the entry and restores any wish it fulfilled, as everywhere else.
-- [ ] An unsupported variant shows the existing error, and an outage shows the existing message and retry.
-- [ ] Collection and wishlist links appear only when relevant, and open the filtered pages.
-- [ ] Tests cover each action, user scoping and the outage path.
+- [x] Owned counts and wishlist status are correct per variant and scoped to the signed-in user.
+- [x] Add, "+", "−" and Add to wishlist update the variants section in place and update the nav's active-wish count.
+- [x] "−" removing the last copy deletes the entry and restores any wish it fulfilled, as everywhere else.
+- [x] An unsupported variant shows the existing error, and an outage shows the existing message and retry.
+- [x] Collection and wishlist links appear only when relevant, and open the filtered pages.
+- [x] Tests cover each action, user scoping and the outage path.
 
 ---
 
