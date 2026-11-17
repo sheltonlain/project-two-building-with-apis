@@ -9,7 +9,8 @@
       {% if filters.set %}<input type="hidden" name="set" value="{{ filters.set }}">{% endif %}
       {% if filters.rarity %}<input type="hidden" name="rarity" value="{{ filters.rarity }}">{% endif %}
       <div role="alert" class="alert alert-warning py-2 grow">
-        <span>We couldn't load the set and rarity lists from TCGdex, the card database. You can still search by name, or try again in a minute.</span>
+        <span>We couldn't load the set and rarity lists from TCGdex, the card database. You can still search by name, or try again in a minute.
+          <span data-search-countdown="{{ retry_delay }}">Trying again in {{ retry_delay }}s…</span></span>
         <a href="{% querystring %}" class="btn btn-sm" hx-headers='{"X-User-Retry": "1"}'>Retry</a>
       </div>
     {% else %}
@@ -46,7 +47,8 @@
 
   {% if unavailable %}
     <div role="alert" class="alert alert-warning">
-      <span>We couldn't reach TCGdex, the card database. Check your internet connection, or try again in a minute.</span>
+      <span>We couldn't reach TCGdex, the card database. Check your internet connection, or try again in a minute.
+        <span data-search-countdown="{{ retry_delay }}">Trying again in {{ retry_delay }}s…</span></span>
       <a href="{% querystring %}" class="btn btn-sm" hx-headers='{"X-User-Retry": "1"}'>Retry</a>
     </div>
   {% elif needs_filter %}
@@ -103,5 +105,14 @@
     {% endif %}
   {% else %}
     <p class="opacity-70">Search the TCGdex catalog by card name, set or rarity, or combine them. Part of a name works, for example "pika".</p>
+  {% endif %}
+
+  {% if unavailable or filters_unavailable %}
+    {# Re-sends the form as it stands (so anything typed meanwhile is kept) once the countdown ends. #}
+    {# An ordinary request, not a user retry, so it never probes an open breaker; it replaces the #}
+    {# history entry so Back still leaves the page. #}
+    <div hidden data-search-retry hx-get="{% url 'catalog:search' %}" hx-include="#search-panel form"
+         {% if retry_page %}hx-vals='{"page": "{{ retry_page }}"}' {% endif %}hx-trigger="load delay:{{ retry_delay }}s"
+         hx-target="#search-panel" hx-swap="outerHTML" hx-replace-url="true" hx-indicator="#search-indicator"></div>
   {% endif %}
 </div>

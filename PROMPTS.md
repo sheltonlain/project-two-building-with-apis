@@ -28,6 +28,29 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented UI improvements Phase 1: search auto-retry
+
+### Prompts
+1. `/implement @prd/ui-improvements.md @plans/ui-improvements.md Implement phase 1`
+2. "yes, go ahead with both" (approved the two TDD behaviors)
+3. "yes" (approved behavior 1's test)
+4. "Yes" (go on to behavior 2)
+5. "yes" (approved behavior 2's test)
+6. "yes" (continue with the countdown script, full suite, linter and formatter)
+7. "yes, all steps worked" (confirmed the manual verification)
+8. "yes, add that line" (approved the CLAUDE.md line)
+9. "yes, update PROMPTS.md, then commit and push. Please also add a note that I forgot to add the UI-Improvements Grill-Me Session to PROMPTS.md when you update that file."
+
+### Summary
+- **Outcome:** A failed search, or failed Set/Rarity lists, now shows a "Trying again in Ns…" countdown next to Retry. At zero, a hidden HTMX element in the search panel re-sends the form as it currently stands, plus the failed page number. It sends no user-retry header and replaces the history entry instead of adding one. The search page's countdown script now also counts these down. Two TDD tests were added in `catalog/tests/test_search_view.py`, one per behavior. The full suite (201 tests), Ruff lint and Ruff format pass. All seven manual checks passed, and all seven acceptance criteria are ticked in the plan. `CLAUDE.md` gained one line about the automatic search retry.
+- **Deviations:** Every recommendation was accepted, with no follow-up questions.
+- **Sideways:**
+  - `catalog/views.py` already had uncommitted work for this phase (`add_retry_context`) from before the session. It was kept as it was and built on.
+  - Behavior 1's first RED run failed with a `ValueError` from list unpacking, not an assertion. It was changed to an explicit length assertion before asking for approval.
+  - Behavior 2's RED test failed only on the countdown text, because behavior 1's retry element already covered failed filter lists.
+  - Ruff format flagged the new tests (written through a shell heredoc), and `ruff format` fixed them.
+  - The user forgot to log the UI-improvements grill-me session, which produced `prd/ui-improvements.md` and `plans/ui-improvements.md`, in PROMPTS.md. That session has no entry here.
+
 ## 2026-11-16 — Implemented Phase 13: price refresh
 
 ### Prompts

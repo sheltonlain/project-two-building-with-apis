@@ -66,6 +66,7 @@ class SearchView(LoginRequiredMixin, TemplateView):
             context["rarities"] = call(tcgdex.rarities)
         except tcgdex.ProviderUnavailable:
             context["filters_unavailable"] = True
+            self.add_retry_context(context)
 
         if not any(filters.values()):
             context["needs_filter"] = any(key in query for key in FILTERS)
@@ -75,6 +76,7 @@ class SearchView(LoginRequiredMixin, TemplateView):
             cards = call(tcgdex.search_cards, filters["name"], filters["set"], filters["rarity"])
         except tcgdex.ProviderUnavailable:
             context["unavailable"] = True
+            self.add_retry_context(context)
             return context
 
         page = Paginator(cards, PAGE_SIZE).get_page(query.get("page"))
@@ -82,6 +84,16 @@ class SearchView(LoginRequiredMixin, TemplateView):
         context["page"] = page
         context["page_range"] = page.paginator.get_elided_page_range(page.number)
         return context
+
+    def add_retry_context(self, context):
+        """When to re-submit the search automatically, timed like a failed tile's retry.
+
+        The automatic retry sends the form as it stands (keeping anything typed meanwhile) plus
+        the result page that failed, so a failed page 3 comes back as page 3.
+        """
+        context["retry_delay"] = tcgdex.outage_seconds_left() + random.randint(0, RETRY_SPREAD)
+        page = self.request.GET.get("page", "")
+        context["retry_page"] = page if page.isdigit() else ""
 
 
 class TileDetailsView(LoginRequiredMixin, TemplateView):

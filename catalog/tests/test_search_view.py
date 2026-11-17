@@ -353,3 +353,54 @@ def test_the_filter_retry_is_a_user_retry(signed_in_client):
     start = content.index('role="search"')
     filters = content[start : content.index("</form>", start)]
     assert """hx-headers='{"X-User-Retry": "1"}'>Retry</a>""" in filters
+
+
+def auto_retries(content):
+    """The panel's automatic-retry elements (opening tags only)."""
+    return re.findall(r"<div[^>]*\bdata-search-retry\b[^>]*>", content)
+
+
+@pytest.fixture
+def outage_of_30_seconds(monkeypatch):
+    monkeypatch.setattr(tcgdex, "outage_seconds_left", lambda: 30)
+    monkeypatch.setattr("catalog.views.random.randint", lambda low, high: 2)
+
+
+@responses.activate
+def test_a_failed_search_retries_the_current_form_by_itself_after_a_countdown(
+    signed_in_client, outage_of_30_seconds
+):
+    responses.get(CARDS_URL, status=503)
+
+    content = signed_in_client.get(SEARCH_URL, {"name": "pika", "page": "2"}).content.decode()
+
+    retries = auto_retries(content)
+    assert len(retries) == 1
+    retry = retries[0]
+    assert f'hx-get="{SEARCH_URL}"' in retry
+    assert 'hx-include="#search-panel form"' in retry  # the form as it stands, typing kept
+    assert """hx-vals='{"page": "2"}'""" in retry  # the failed page comes back as that page
+    assert 'hx-trigger="load delay:32s"' in retry  # breaker's 30s plus the spread
+    assert 'hx-replace-url="true"' in retry  # no extra history entry
+    assert "X-User-Retry" not in retry  # automatic, so it never probes an open breaker
+    assert "Trying again in 32s" in content
+
+
+@responses.activate
+def test_failed_filter_lists_retry_by_themselves_and_keep_the_chosen_set_and_rarity(
+    signed_in_client, outage_of_30_seconds
+):
+    responses.replace(responses.GET, SERIES_URL, status=503)
+    responses.get(CARDS_URL, json=fake_cards(2))  # the search itself still works
+
+    content = signed_in_client.get(SEARCH_URL, {"set": "sv01", "rarity": "Common"}).content.decode()
+
+    start = content.index('role="search"')
+    filters = content[start : content.index("</form>", start)]
+    retries = auto_retries(content)
+    assert len(retries) == 1
+    assert 'hx-trigger="load delay:32s"' in retries[0]
+    assert 'hx-include="#search-panel form"' in retries[0]  # includes the hidden set and rarity
+    assert '<input type="hidden" name="set" value="sv01">' in filters
+    assert '<input type="hidden" name="rarity" value="Common">' in filters
+    assert "Trying again in 32s" in filters

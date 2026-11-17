@@ -10,8 +10,9 @@
 </div>
 
 <script>
-  // Tiles whose details failed retry themselves (see catalog/_tile_details.html). This script
-  // counts their countdowns down and keeps the banner above the grid in step with them.
+  // Tiles whose details failed retry themselves (see catalog/_tile_details.html), and so does a
+  // failed search (see catalog/_search_panel.html). This script counts their countdowns down and
+  // keeps the banner above the grid in step with the tiles.
   (() => {
     const countdowns = () => document.querySelectorAll("[data-tile-failed] [data-countdown]");
 
@@ -33,6 +34,13 @@
         const left = Math.max(0, Number(el.dataset.countdown) - 1);
         el.dataset.countdown = left;
         el.textContent = left ? `Trying again in ${left}s` : "Trying again…";
+      });
+      // A failed search or filter list re-submits itself (the panel's data-search-retry element);
+      // these count down to it.
+      document.querySelectorAll("[data-search-countdown]").forEach((el) => {
+        const left = Math.max(0, Number(el.dataset.searchCountdown) - 1);
+        el.dataset.searchCountdown = left;
+        el.textContent = left ? `Trying again in ${left}s…` : "Trying again…";
       });
       updateBanner();
     }, 1000);
