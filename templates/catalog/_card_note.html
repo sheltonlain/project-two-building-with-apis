@@ -1,0 +1,18 @@
+{% comment %}
+  One note area on the card page: the note on the user's collection entry (kind="entry") or on
+  their wish (kind="wish") for a variant. Its controls call the collection app's notes actions
+  with ?from=card, which answer with just this area, so it replaces only itself (outerHTML).
+  Takes `kind`, `item` (the OwnedCard or Wish), `name`, and `editing`, `form` and `notice`.
+{% endcomment %}
+<div id="note-{{ kind }}-{{ item.pk }}" class="flex flex-col gap-1" hx-target="this" hx-swap="outerHTML">
+  <p class="text-sm font-semibold">{% if kind == "entry" %}Collection note{% else %}Wishlist note{% endif %}</p>
+  {% if kind == "entry" %}
+    {% url 'collection:entry_notes' item.pk as base_notes_url %}{% url 'collection:entry_notes_delete' item.pk as base_delete_url %}
+  {% else %}
+    {% url 'collection:wish_notes' item.pk as base_notes_url %}{% url 'collection:wish_notes_delete' item.pk as base_delete_url %}
+  {% endif %}
+  {% with notes_url=base_notes_url|add:"?from=card" delete_url=base_delete_url|add:"?from=card" %}
+    {% include "collection/_notes.html" with notes=item.notes %}
+  {% endwith %}
+  {% if notice %}<p role="status" class="text-sm text-success">{{ notice }}</p>{% endif %}
+</div>

@@ -28,6 +28,29 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented UI improvements Phase 5: card detail notes
+
+### Prompts
+1. `/implement @prd/ui-improvements.md @plans/ui-improvements.md Implement phase 5`
+2. "yes, go ahead" (approved the three TDD behaviors and the `?from=card` approach)
+3. "yes, go ahead" (approved test 1: the card page shows entry and wish notes with their controls)
+4. "yes, go ahead" (approved test 2: saving from the card page returns just the note area)
+5. "yes, go ahead" (approved test 3: without HTMX, save and delete return to the card page)
+6. "proceed" (build and test the rest of the phase normally)
+7. "Quick detour - can we make the card name and set name in the detail page left-aligned, similarly to the wishlist and collections pages"
+8. "All pass. One quick note -- when I add a note to a card in my wishlist or collection, then click back, then click forward again, the note no longer appears"
+9. "Yes, it works. Update CLAUDE.md and PROMPTS.md then commit and push"
+
+### Summary
+- **Outcome:** Each variant on the card detail page shows a "Collection note" when owned and a "Wishlist note" when wished, each with Add/Edit/Delete note (`catalog/_card_note.html`). The existing notes actions are reused: with `?from=card` they answer with just that note area (`NotesView.render_item`), and without HTMX they redirect to the card page (`NotesView.return_url`), including the no-JavaScript note form page's Cancel and Delete. A new `services.wished_entries` gives each variant row its active wish. Cancel in `_notes.html` no longer breaks on a URL that already has a query string. The card page now puts its name and set across the top of the card, above the image and variants, matching collection and wishlist cards. A new `SignedInNoStoreMiddleware` marks signed-in pages `no-store`. 13 new tests (11 in `catalog/tests/test_card_notes.py`, 2 in `catalog/tests/test_htmx_caching.py`); all 239 pass and every Phase 5 criterion is ticked. CLAUDE.md gained the two suggested rules.
+- **Deviations:**
+  - The card page layout change was outside Phase 5's scope and was added on request. "Left-aligned" was read as moving the header above the image, since nothing was centering the text.
+  - The Back/Forward fix was also outside the phase. It was a bug the user found during manual testing.
+- **Sideways:**
+  - Back then Forward showed the browser's stored copy of a page from before a note was added (the same applied to "+", "−" and Remove). Signed-in pages now send `Cache-Control: no-store`. An existing assertion in `test_htmx_caching.py` that required signed-in full pages *not* to be `no-store` was removed, because the fix reverses it.
+  - One follow-up test expected `&amp;cancel=1` in the Cancel URL, but the template writes a bare `&`; the expected string was corrected.
+  - The first full test run went past the 2-minute tool timeout and finished in the background (227 passed).
+
 ## 2026-11-16 — Implemented UI improvements Phase 4: card detail actions
 
 ### Prompts

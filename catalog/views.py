@@ -246,19 +246,20 @@ class TileWishView(TileActionView):
 
 
 def add_variant_rows(context, user, card):
-    """The card page's variant rows: each variant with the user's entry for it (or None), that
-    entry's total value, and whether it's on their wishlist. Also links to this card on the
-    user's collection and wishlist pages, when they have something of it there."""
+    """The card page's variant rows: each variant with the user's entry for it and their active
+    wish for it (each None if there isn't one), and that entry's total value. Also links to this
+    card on the user's collection and wishlist pages, when they have something of it there."""
     entries = services.owned_entries(user, card["id"])
-    wished = services.wished_variants(user, card["id"])
+    wished = services.wished_entries(user, card["id"])
     rows = []
     for variant in card["variants"]:
         entry = entries.get(variant["code"])
+        wish = wished.get(variant["code"])
         value = None
         if entry is not None and variant["price"] is not None:
             value = variant["price"] * entry.quantity
         rows.append(
-            {**variant, "entry": entry, "value": value, "wished": variant["code"] in wished}
+            {**variant, "entry": entry, "value": value, "wish": wish, "wished": wish is not None}
         )
     context["variants"] = rows
     # The pages' search and set filters narrow them to this card.

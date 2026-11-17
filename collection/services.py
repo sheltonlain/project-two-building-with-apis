@@ -191,6 +191,12 @@ def wished_variants(user, card_id):
     return set(wishes.values_list("variant__variant", flat=True))
 
 
+def wished_entries(user, card_id):
+    """{variant code: Wish} for the variants of one card that the user has an active wish for."""
+    wishes = active_wishes(user).filter(variant__card__tcgdex_id=card_id)
+    return {wish.variant.variant: wish for wish in wishes}
+
+
 def remove_wish(wish):
     """Delete a wish. Returns what undo_wish_removal() needs to put it back, as JSON-safe data
     (it is kept in the session)."""

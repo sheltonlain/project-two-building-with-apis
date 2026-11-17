@@ -126,12 +126,12 @@ Each variant row shows the note on the user's collection entry for that variant 
 
 ### Acceptance criteria
 
-- [ ] Notes for owned variants and wished variants show on the detail page with the right controls.
-- [ ] Adding, editing, cancelling and deleting a note swaps only that note's area. The rest of the page is unchanged.
-- [ ] Blank and over-500-character notes show the existing validation errors in place.
-- [ ] Without HTMX, saving or deleting returns to the detail page.
-- [ ] The same actions still behave exactly as before on the collection and wishlist pages.
-- [ ] Another user's entry or wish is a 404.
+- [x] Notes for owned variants and wished variants show on the detail page with the right controls.
+- [x] Adding, editing, cancelling and deleting a note swaps only that note's area. The rest of the page is unchanged.
+- [x] Blank and over-500-character notes show the existing validation errors in place.
+- [x] Without HTMX, saving or deleting returns to the detail page.
+- [x] The same actions still behave exactly as before on the collection and wishlist pages.
+- [x] Another user's entry or wish is a 404.
 
 ---
 

@@ -36,4 +36,18 @@ def test_fragments_and_full_pages_are_cached_separately_and_fragments_not_at_all
     assert "<html" in page.content.decode()
     assert "<html" not in fragment.content.decode()
     assert "no-store" in fragment["Cache-Control"]
-    assert "no-store" not in page.get("Cache-Control", "")
+    # (Full pages for signed-in users are no-store too; see the test below.)
+
+
+def test_signed_in_pages_are_never_reused_from_the_browser_cache(signed_in_client, client):
+    """A note added (or a copy added) after a page loaded must still show when the user goes
+    Back and then Forward to it, so the browser may not keep its own copy of the page."""
+    collection = signed_in_client.get(reverse("collection:index"))
+
+    assert "no-store" in collection["Cache-Control"]
+
+
+def test_signed_out_pages_keep_ordinary_caching(client, db):
+    response = client.get(reverse("home"))
+
+    assert "no-store" not in response.get("Cache-Control", "")

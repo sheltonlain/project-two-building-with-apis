@@ -62,6 +62,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "pokedex.middleware.HtmxVaryMiddleware",
+    "pokedex.middleware.SignedInNoStoreMiddleware",
 ]
 
 ROOT_URLCONF = "pokedex.urls"

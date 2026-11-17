@@ -465,6 +465,8 @@ class NotesView(LoginRequiredMixin, TemplateView):
     GET shows the note form: with HTMX, in place on the item (or, with `cancel`, the item
     without the form); otherwise as a page of its own. POST saves the note: with HTMX the item
     comes back with the note or the form's errors; otherwise the browser goes back to the list.
+    From the card page (?from=card), HTMX responses are just the note area and the browser goes
+    back to the card page instead.
     Another user's item is a 404.
     """
 
@@ -481,12 +483,21 @@ class NotesView(LoginRequiredMixin, TemplateView):
     def get_item(self, pk):
         return get_object_or_404(self.get_items(self.request.user), pk=pk)
 
+    def from_card_page(self):
+        """The card detail page sends ?from=card; it swaps just the note, not the whole item."""
+        return self.request.GET.get("from") == "card"
+
     def render_item(self, pk, **context):
-        """The item drawn fresh from the database, with `context` added."""
-        context[self.item_name] = self.get_item(pk)
-        return self.response_class(
-            request=self.request, template=self.fragment_template, context=context
-        )
+        """The item drawn fresh from the database, with `context` added: the whole item, or just
+        its note area on the card page."""
+        item = self.get_item(pk)
+        if self.from_card_page():
+            template = "catalog/_card_note.html"
+            context.update(kind=self.item_name, item=item, name=item.variant.card.name)
+        else:
+            template = self.fragment_template
+            context[self.item_name] = item
+        return self.response_class(request=self.request, template=template, context=context)
 
     def get(self, request, pk):
         item = self.get_item(pk)
@@ -504,18 +515,27 @@ class NotesView(LoginRequiredMixin, TemplateView):
             item.notes = form.cleaned_data["notes"]
             item.save(update_fields=["notes"])
             if not is_htmx(request):
-                return redirect(self.list_url)
+                return redirect(self.return_url(item))
             return self.render_item(pk, notice="Note saved.")
         if not is_htmx(request):
             return self.render_page(item, form)
         return self.render_item(pk, editing=True, form=form)
 
+    def return_url(self, item):
+        """Where the note form page goes back to: the card page it came from, or the list."""
+        if self.from_card_page():
+            return reverse("catalog:card_detail", args=[item.variant.card.tcgdex_id])
+        return reverse(self.list_url)
+
     def render_page(self, item, form):
+        delete_url = reverse(self.delete_url, args=[item.pk])
+        if self.from_card_page():
+            delete_url += "?from=card"  # so Delete note also returns to the card page
         context = {
             "item": item,
             "form": form,
-            "list_url": reverse(self.list_url),
-            "delete_url": reverse(self.delete_url, args=[item.pk]),
+            "list_url": self.return_url(item),
+            "delete_url": delete_url,
         }
         return self.response_class(
             request=self.request, template=self.page_template, context=context
@@ -532,7 +552,7 @@ class NotesDeleteView(NotesView):
         item.notes = ""
         item.save(update_fields=["notes"])
         if not is_htmx(request):
-            return redirect(self.list_url)
+            return redirect(self.return_url(item))
         return self.render_item(pk, notice="Note deleted.")
 
 

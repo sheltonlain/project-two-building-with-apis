@@ -28,9 +28,8 @@
           {% else %}
             <p class="text-lg opacity-70">No price</p>
           {% endif %}
-          {% if variant.entry and variant.entry.notes %}
-            <p class="italic opacity-80 break-words whitespace-pre-line border-l-4 border-base-300 pl-3">{{ variant.entry.notes }}</p>
-          {% endif %}
+          {% if variant.entry %}{% include "catalog/_card_note.html" with kind="entry" item=variant.entry name=card.name %}{% endif %}
+          {% if variant.wish %}{% include "catalog/_card_note.html" with kind="wish" item=variant.wish name=card.name %}{% endif %}
           <div class="flex flex-wrap items-center gap-3">
             {% if variant.entry %}
               <div class="join">

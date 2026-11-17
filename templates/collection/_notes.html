@@ -1,6 +1,7 @@
 {% comment %}
   The note on a collection entry or a wish, inside that item's card (whose hx-target/hx-swap
-  this inherits, so every response here replaces the whole item). Shows the note with Edit and
+  this inherits, so every response here replaces the whole item), or inside a note area on the
+  card page (catalog/_card_note.html, which replaces just itself). Shows the note with Edit and
   Delete, or, while `editing`, the note form. Takes `notes`, `notes_url`, `delete_url`, `name`
   (for labels), and `editing` and `form` while editing.
 {% endcomment %}
@@ -18,7 +19,7 @@
     {% endif %}
     <div class="flex gap-2">
       <button type="submit" class="btn btn-sm btn-primary">Save note</button>
-      <button type="button" class="btn btn-sm btn-ghost" hx-get="{{ notes_url }}?cancel=1">Cancel</button>
+      <button type="button" class="btn btn-sm btn-ghost" hx-get="{{ notes_url }}{% if '?' in notes_url %}&{% else %}?{% endif %}cancel=1">Cancel</button>
       {% if notes %}
         <button type="button" class="btn btn-sm btn-ghost text-error ml-auto" hx-post="{{ delete_url }}"
                 hx-confirm="Delete your note on {{ name }}?">Delete note</button>

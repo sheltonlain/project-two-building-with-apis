@@ -41,6 +41,8 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - HTMX fragment responses carry `Vary: HX-Request` and are never cached (`pokedex/middleware.py`), so Back never shows a bare fragment.
 - The card detail page falls back to the stored Card (`Card.as_detail()`) when TCGdex is down.
 - Card page links to the collection and wishlist filter them by `q` (card name) and `set`.
+- Notes actions called with `?from=card` answer with just the card page's note area, and without HTMX return to the card page.
+- Signed-in pages are `no-store`, so Back/Forward never shows a stale copy.
 
 ## References
 
