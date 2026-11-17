@@ -10,6 +10,7 @@ from django.views.generic import TemplateView
 from catalog import tcgdex
 
 from . import services
+from .forms import NotesForm
 
 
 def is_htmx(request):
@@ -405,3 +406,116 @@ class WishDismissView(WishMoveView):
         services.dismiss_wish(wish)
         label = wish.variant.get_variant_display()
         return None, f"Dismissed {wish.variant.card.name} ({label}).", ""
+
+
+class NotesView(LoginRequiredMixin, TemplateView):
+    """Add or edit the note on one of the user's items (a collection entry or a wish).
+
+    GET shows the note form: with HTMX, in place on the item (or, with `cancel`, the item
+    without the form); otherwise as a page of its own. POST saves the note: with HTMX the item
+    comes back with the note or the form's errors; otherwise the browser goes back to the list.
+    Another user's item is a 404.
+    """
+
+    http_method_names = ["get", "post"]
+    page_template = "collection/notes_form.html"
+    item_name = ""  # the item's name in the fragment template's context
+    fragment_template = ""
+    list_url = ""
+    delete_url = ""  # the URL name of Delete note
+
+    def get_items(self, user):
+        raise NotImplementedError
+
+    def get_item(self, pk):
+        return get_object_or_404(self.get_items(self.request.user), pk=pk)
+
+    def render_item(self, pk, **context):
+        """The item drawn fresh from the database, with `context` added."""
+        context[self.item_name] = self.get_item(pk)
+        return self.response_class(
+            request=self.request, template=self.fragment_template, context=context
+        )
+
+    def get(self, request, pk):
+        item = self.get_item(pk)
+        form = NotesForm(initial={"notes": item.notes})
+        if is_htmx(request):
+            if request.GET.get("cancel"):
+                return self.render_item(pk)
+            return self.render_item(pk, editing=True, form=form)
+        return self.render_page(item, form)
+
+    def post(self, request, pk):
+        item = self.get_item(pk)
+        form = NotesForm(request.POST)
+        if form.is_valid():
+            item.notes = form.cleaned_data["notes"]
+            item.save(update_fields=["notes"])
+            if not is_htmx(request):
+                return redirect(self.list_url)
+            return self.render_item(pk, notice="Note saved.")
+        if not is_htmx(request):
+            return self.render_page(item, form)
+        return self.render_item(pk, editing=True, form=form)
+
+    def render_page(self, item, form):
+        context = {
+            "item": item,
+            "form": form,
+            "list_url": reverse(self.list_url),
+            "delete_url": reverse(self.delete_url, args=[item.pk]),
+        }
+        return self.response_class(
+            request=self.request, template=self.page_template, context=context
+        )
+
+
+class NotesDeleteView(NotesView):
+    """Delete the note on one of the user's items. POST only."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        item = self.get_item(pk)
+        item.notes = ""
+        item.save(update_fields=["notes"])
+        if not is_htmx(request):
+            return redirect(self.list_url)
+        return self.render_item(pk, notice="Note deleted.")
+
+
+class EntryNotesMixin:
+    item_name = "entry"
+    fragment_template = "collection/_entry.html"
+    list_url = "collection:index"
+    delete_url = "collection:entry_notes_delete"
+
+    def get_items(self, user):
+        return services.collection_entries(user)
+
+
+class WishNotesMixin:
+    item_name = "wish"
+    fragment_template = "collection/_wish.html"
+    list_url = "collection:wishlist"
+    delete_url = "collection:wish_notes_delete"
+
+    def get_items(self, user):
+        return services.all_wishes(user)
+
+
+class EntryNotesView(EntryNotesMixin, NotesView):
+    pass
+
+
+class EntryNotesDeleteView(EntryNotesMixin, NotesDeleteView):
+    pass
+
+
+class WishNotesView(WishNotesMixin, NotesView):
+    pass
+
+
+class WishNotesDeleteView(WishNotesMixin, NotesDeleteView):
+    pass

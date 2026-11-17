@@ -248,11 +248,11 @@ Let users add, edit and clear plain-text notes (up to 500 characters) on collect
 
 ### Acceptance criteria
 
-- [ ] Notes can be added, edited and cleared on both pages.
-- [ ] More than 500 characters shows a validation message and saves nothing.
-- [ ] Notes are shown as plain text (escaped).
-- [ ] Only the owner can edit notes (404 for others).
-- [ ] Tests cover length validation and ownership.
+- [x] Notes can be added, edited and cleared on both pages.
+- [x] More than 500 characters shows a validation message and saves nothing.
+- [x] Notes are shown as plain text (escaped).
+- [x] Only the owner can edit notes (404 for others).
+- [x] Tests cover length validation and ownership.
 
 ---
 

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% comment %}
+  The note form as a page of its own, for when HTMX isn't running. `item` is a collection entry
+  or a wish.
+{% endcomment %}
+{% block title %}Note on {{ item.variant.card.name }}{% endblock %}
+{% block content %}
+<div class="max-w-lg">
+  <h1 class="text-2xl font-bold mb-1">Note on {{ item.variant.card.name }}</h1>
+  <p class="mb-4 opacity-70">{{ item.variant.card.set_name }} · {{ item.variant.get_variant_display }}</p>
+  <form method="post" class="flex flex-col gap-2">
+    {% csrf_token %}
+    <label for="id_notes" class="font-semibold">Note</label>
+    <textarea id="id_notes" name="notes" rows="5"
+              class="textarea textarea-bordered w-full{% if form.notes.errors %} textarea-error{% endif %}"
+              {% if form.notes.errors %}aria-invalid="true" aria-describedby="notes-error"{% endif %}>{{ form.notes.value|default_if_none:"" }}</textarea>
+    {% if form.notes.errors %}
+      <p id="notes-error" role="alert" class="text-sm text-error">{{ form.notes.errors|join:" " }}</p>
+    {% else %}
+      <p class="text-sm opacity-70">{{ form.notes.help_text }}</p>
+    {% endif %}
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Save note</button>
+      <a href="{{ list_url }}" class="btn btn-ghost">Cancel</a>
+      {% if item.notes %}
+        <button type="submit" form="delete-note" class="btn btn-ghost text-error ml-auto">Delete note</button>
+      {% endif %}
+    </div>
+  </form>
+  {% if item.notes %}
+    <form id="delete-note" method="post" action="{{ delete_url }}"
+          onsubmit="return confirm('Delete your note on {{ item.variant.card.name|escapejs }}?')">
+      {% csrf_token %}
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

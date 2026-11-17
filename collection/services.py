@@ -129,6 +129,11 @@ def fulfilled_wishes(user):
     )
 
 
+def all_wishes(user):
+    """All the user's wishes, active and fulfilled-but-not-dismissed."""
+    return Wish.objects.filter(user=user).select_related("variant__card")
+
+
 def wished_variants(user, card_id):
     """The variant codes of one card that the user has an active wish for."""
     wishes = active_wishes(user).filter(variant__card__tcgdex_id=card_id)

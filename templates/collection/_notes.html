@@ -1,0 +1,37 @@
+{% comment %}
+  The note on a collection entry or a wish, inside that item's card (whose hx-target/hx-swap
+  this inherits, so every response here replaces the whole item). Shows the note with Edit and
+  Delete, or, while `editing`, the note form. Takes `notes`, `notes_url`, `delete_url`, `name`
+  (for labels), and `editing` and `form` while editing.
+{% endcomment %}
+{% if editing %}
+  <form hx-post="{{ notes_url }}" method="post" action="{{ notes_url }}" class="flex flex-col gap-1 mt-1">
+    {% csrf_token %}
+    <label for="notes-{{ notes_url|slugify }}" class="text-xs font-semibold">Note</label>
+    <textarea id="notes-{{ notes_url|slugify }}" name="notes" rows="3" autofocus
+              class="textarea textarea-bordered textarea-sm w-full{% if form.notes.errors %} textarea-error{% endif %}"
+              {% if form.notes.errors %}aria-invalid="true" aria-describedby="notes-error-{{ notes_url|slugify }}"{% endif %}>{{ form.notes.value|default_if_none:"" }}</textarea>
+    {% if form.notes.errors %}
+      <p id="notes-error-{{ notes_url|slugify }}" role="alert" class="text-xs text-error">{{ form.notes.errors|join:" " }}</p>
+    {% else %}
+      <p class="text-xs opacity-70">{{ form.notes.help_text }}</p>
+    {% endif %}
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary">Save note</button>
+      <button type="button" class="btn btn-sm btn-ghost" hx-get="{{ notes_url }}?cancel=1">Cancel</button>
+      {% if notes %}
+        <button type="button" class="btn btn-sm btn-ghost text-error ml-auto" hx-post="{{ delete_url }}"
+                hx-confirm="Delete your note on {{ name }}?">Delete note</button>
+      {% endif %}
+    </div>
+  </form>
+{% else %}
+  {% if notes %}<p class="italic opacity-80 break-words whitespace-pre-line">{{ notes }}</p>{% endif %}
+  <div class="flex gap-2 text-xs">
+    <a href="{{ notes_url }}" hx-get="{{ notes_url }}" class="link">{% if notes %}Edit note{% else %}Add note{% endif %}</a>
+    {% if notes %}
+      <button type="button" class="link text-error" hx-post="{{ delete_url }}"
+              hx-confirm="Delete your note on {{ name }}?">Delete note</button>
+    {% endif %}
+  </div>
+{% endif %}

@@ -28,6 +28,7 @@ A Django web app where signed-in collectors track the Pokémon cards they own an
 - Collection and wishlist Undo records (last 20 removals each) are kept in the session, not the database.
 - Every wish names a specific variant (no "Any variant"); one active wish per user and variant, enforced in the database.
 - Restoring or keeping a wish never makes a second active wish for a variant; the older fulfilled wish is deleted instead.
+- Notes can't be saved blank; clearing a note is a separate Delete note action.
 - Wishlist actions that move a wish between sections (Got it, Keep, OK) re-render the whole wishlist body.
 - Wishlist filters apply to the Got it section too, but sort and pagination apply only to active wishes.
 - Links inside search tiles use `hx-boost="false"` so they open full pages.

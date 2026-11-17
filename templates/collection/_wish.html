@@ -25,7 +25,8 @@
         <span class="opacity-70">No price</span>
       {% endif %}
     </p>
-    {% if wish.notes %}<p class="italic opacity-80 break-words">{{ wish.notes }}</p>{% endif %}
+    {% url 'collection:wish_notes' wish.pk as notes_url %}{% url 'collection:wish_notes_delete' wish.pk as delete_url %}
+    {% include "collection/_notes.html" with notes=wish.notes name=card.name %}
     <p class="text-xs opacity-70">
       Added {{ wish.created|date:"M j, Y" }}{% if fulfilled %} · Fulfilled {{ fulfilled|date:"M j, Y" }}{% endif %}
     </p>

@@ -21,7 +21,8 @@
         <span class="opacity-70">No price</span>
       {% endif %}
     </p>
-    {% if entry.notes %}<p class="italic opacity-80 break-words">{{ entry.notes }}</p>{% endif %}
+    {% url 'collection:entry_notes' entry.pk as notes_url %}{% url 'collection:entry_notes_delete' entry.pk as delete_url %}
+    {% include "collection/_notes.html" with notes=entry.notes name=card.name %}
     <div class="flex items-center gap-2 mt-1">
       <div class="join">
         <button type="button" class="btn btn-sm join-item" hx-post="{% url 'collection:entry_remove' entry.pk %}"

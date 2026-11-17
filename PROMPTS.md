@@ -28,6 +28,46 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-11-16 — Implemented Phase 12: notes
+
+### Prompts
+1. `/implement @prd/pokedex-card-collection.md @plans/pokedex-card-collection.md Implement phase 12`
+2. "You should not be able to save a blank note. It needs context or can be deleted" (correction
+   to the proposed TDD behavior 2, which had treated saving a blank note as clearing it)
+3. "yes go ahead" (approved the revised three TDD behaviors)
+4. "yes go ahead" (approved behavior 1's test)
+5. "yes go ahead" (move on to behavior 2)
+6. "Yes" (approved behavior 2's test)
+7. "yes go ahead" (move on to behavior 3)
+8. "This is not a real TDD test, so I don't want to treat it as such. If there is another true
+   TDD test we can run, let's do that. If not, proceed with the phase"
+9. "When we click edit note, can the delete button be an option under the text box as well?"
+10. "Manual verification passed"
+11. "yes to both" (update CLAUDE.md and PROMPTS.md)
+
+### Summary
+- **Outcome:** Collection entries and wishes (active and fulfilled) got Add note, Edit note and
+  Delete note. The note form opens in place through HTMX, with Save, Cancel and (when a note
+  exists) Delete note under the text box; without HTMX the same URL is a full page. A shared
+  `NotesForm` rejects notes over 500 characters ("Notes can be at most 500 characters; this one
+  has N.") and blank or whitespace-only notes ("Write a note, or use Delete note to remove it.").
+  Notes are escaped plain text, and other users' items return 404. Two behaviors were built
+  test-first; 188 tests pass.
+- **Deviations:** The user overrode the proposed behavior that saving an empty note clears it:
+  blank saves are rejected and clearing is its own Delete note action. The user rejected
+  behavior 3 (owner-only 404) as a TDD test because it passed on first run, and it was kept as
+  an ordinary regression test; no other true TDD candidate was left. The user asked for Delete
+  note inside the edit form as well.
+- **Sideways:**
+  - The first form draft was a ModelForm that swapped its `_meta.model` per instance, which would
+    have changed the class for every request; it was replaced with a plain Form before any test
+    ran.
+  - Behavior 3 went green immediately because the scaffolding already scoped lookups to the user.
+    A temporary unscoped lookup made it fail (200 instead of 404) to show the test could catch a
+    leak, and the views were restored.
+  - When Delete note was added to the edit form, a new test check was placed after the delete
+    and failed; it was moved to run after the save.
+
 ## 2026-11-16 — Implemented Phase 11: wishlist search, filter, sort and pagination
 
 ### Prompts
